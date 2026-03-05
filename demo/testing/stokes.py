@@ -1,6 +1,6 @@
 import firedrake
 from firedrake import (
-    Constant, as_tensor, inner, dot, sym, grad, div, dx, ds, dS, avg, jump
+    Constant, as_tensor, inner, outer, dot, sym, grad, div, dx, avg, jump
 )
 import ufl
 
@@ -24,7 +24,7 @@ def free_energy_rate_cartesian(**kwargs) -> firedrake.Form:
 
 
 def free_energy_rate_cartesian_dg(**kwargs) -> firedrake.Form:
-    G_conforming = free_energy_rate_cartesian(**kwargs)
+    G_cells = free_energy_rate_cartesian(**kwargs)
 
     u = kwargs["velocity"]
     p = kwargs["pressure"]
@@ -34,23 +34,31 @@ def free_energy_rate_cartesian_dg(**kwargs) -> firedrake.Form:
     τ = 2 * μ * ε
 
     mesh = ufl.domain.extract_unique_domain(u)
-    n = firedrake.FacetNormal(mesh)
+    ids = kwargs["dirichlet_ids"]
+    if mesh.extruded:
+        ids.remove("bottom")
+        dS = firedrake.dS_h + firedrake.dS_v
+        ds = firedrake.ds_v(tuple(ids)) + firedrake.ds_b
+    else:
+        dS = firedrake.dS
+        ds = firedrake.ds(tuple(ids))
 
-    # TODO: quadruple-check the math here
+    n = firedrake.FacetNormal(mesh)
     I = firedrake.Identity(mesh.geometric_dimension)
-    G_power = -inner(jump(τ - p * I, n), jump(u)) * dS
+
+    u_n = sym(outer(u, n))
+    G_power = -inner(avg(τ - p * I), u_n("+") + u_n("-")) * dS
 
     α = Constant(kwargs["penalty"])
     γ = avg(firedrake.CellSize(mesh))
     G_penalty = α * μ / (2 * γ) * inner(jump(u), jump(u)) * dS
 
     # TODO: add non-zero boundary velocity
-    ids = tuple(kwargs["dirichlet_ids"])
     u_Γ = Constant((0,) * mesh.geometric_dimension)
-    G_boundary_power = -inner(dot(τ - p * I, n), u - u_Γ) * ds(ids)
-    G_boundary_penalty = α * μ / (2 * γ) * inner(u - u_Γ, u - u_Γ) * ds(ids)
+    G_boundary_power = -inner(τ - p * I, sym(outer(u - u_Γ, n))) * ds
+    G_boundary_penalty = α * μ / (2 * γ) * inner(u - u_Γ, u - u_Γ) * ds
 
-    return G_conforming + G_power + G_penalty + G_boundary_power + G_boundary_penalty
+    return G_cells + G_power + G_penalty + G_boundary_power + G_boundary_penalty
 
 
 def coordinate_transformation_derivative(b, h):
@@ -84,13 +92,19 @@ def free_energy_rate_terrain_following(**kwargs) -> firedrake.Form:
     ε = sym(du)
     τ = 2 * μ * ε
 
+    G_cells = (
+        0.5 * h * inner(τ, ε) - p * div(h * u) - h * inner(dot(J, f), dot(J, u))
+    ) * dx
+
+    mesh = ufl.domain.extract_unique_domain(u)
+    n = firedrake.FacetNormal(mesh)
+
+    # TODO: quadruple-check the math
     I = firedrake.Identity(mesh.geometric_dimension)
+    G_power = -inner(jump(τ - p * I, dot(J, n)), jump(dot(J, u))) * dS
 
-    f_x = dot(J, f)
-    u_x = dot(J, u)
-    G_cells = (0.5 * h * inner(τ, ε) - p * div(h * u) - h * inner(f_x, u_x)) * dx
+    α = Constant(kwargs["penalty"])
+    γ = firedrake.CellSize(mesh)
+    G_penalty = α * μ / (2 * γ) * inner(jump(dot(J, u)), jump(dot(J, u))) * dS
 
-    # Miracle occurs...
-
-    raise NotImplementedError("Insh'allah I will finish this")
     return G_cells + G_power + G_penalty
