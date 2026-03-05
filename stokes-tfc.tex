@@ -1,0 +1,235 @@
+\documentclass{article}
+
+\usepackage{amsmath}
+%\usepackage{amsfonts}
+\usepackage{amsthm}
+%\usepackage{amssymb}
+%\usepackage{mathrsfs}
+%\usepackage{fullpage}
+%\usepackage{mathptmx}
+%\usepackage[varg]{txfonts}
+\usepackage{color}
+\usepackage[charter]{mathdesign}
+\usepackage[pdftex]{graphicx}
+%\usepackage{float}
+%\usepackage{hyperref}
+%\usepackage[modulo, displaymath, mathlines]{lineno}
+%\usepackage{setspace}
+%\usepackage[titletoc,toc,title]{appendix}
+\usepackage{natbib}
+\usepackage[makeroom]{cancel}
+\usepackage[only,llbracket,rrbracket]{stmaryrd}
+
+%\linenumbers
+%\doublespacing
+
+\theoremstyle{definition}
+\newtheorem*{defn}{Definition}
+\newtheorem*{exm}{Example}
+
+\theoremstyle{plain}
+\newtheorem*{thm}{Theorem}
+\newtheorem*{lem}{Lemma}
+\newtheorem*{prop}{Proposition}
+\newtheorem*{cor}{Corollary}
+
+\newcommand{\argmin}{\text{argmin}}
+\newcommand{\ud}{\hspace{2pt}\mathrm{d}}
+\newcommand{\bs}{\boldsymbol}
+\newcommand{\PP}{\mathsf{P}}
+\let\divsymb=\div % rename builtin command \div to \divsymb
+\renewcommand{\div}[1]{\operatorname{div} #1} % for divergence
+\newcommand{\Id}[1]{\operatorname{Id} #1}
+
+\title{Simulating the flow of viscous, incompressible fluids with a free surface using terrain-following coordinates}
+\author{Daniel R. Shapero, Emily Wilbur}
+\date{}
+
+\begin{document}
+
+\maketitle
+
+% --------------------
+\section{Introduction}
+
+Here we describe discretization schemes for viscous free-surface fluid flows.
+In atmospheric science and oceanography, using terrain-following coordinates is a common approach for handling variable surface and bottom topography.
+For these problems, viscous dissipation is negligible to a good approximation.
+The equations of motion contain only first-order derivatives in space and time.
+Here we are interested in other free-surface fluid flows in the earth sciences, such as the flow of glaciers or lava.
+Viscous effects are dominant for these types of flows and so the equations of motion contain second-order derivatives.
+This makes it much harder to apply terrain-following coordinates because the metric terms are discontinuous and live inside a derivative.
+Here we show how to work around this difficulty using discontinuous Galerkin methods.
+
+Using interior penalty discontinuous Galerkin methods requires setting certain penalty parameters.
+Many papers in the research literature assume that this constant is big enough without deriving how big that is.
+An essential tool for us will be the explicit estimates for constants in the finite element trace inverse inequality of \citet{warburton2003constants}.
+This will let us set the constants explicitly in terms of the mesh regularity.
+
+We assume that the fluid flow takes place over a variable topography with elevation $b$.
+The fluid surface is at height $s$ and the film thickness is $h = s - b$.
+
+% -----------------------------------
+\section{DG discretization of Stokes}
+
+The incompressible Stokes equations can be derived through minimization of the free energy dissipation rate
+\begin{equation}
+    G(u, p) = \int_\Omega\left\{\frac{1}{2}\tau :\dot\varepsilon - p\nabla\cdot u - f\cdot u\right\}\mathrm dx
+\end{equation}
+where $\dot\varepsilon = \frac{1}{2}(\nabla u + \nabla u^*)$ is the rate of strain tensor and $\tau = 2\mu\dot\varepsilon$ is the deviatoric stress tensor.
+We will use the minimization form in the following because it requires fewer characters to type and because I like it.
+
+The description above is not quite complete because we also need to specify boundary conditions.
+We will concern ourselves with two types of boundary conditions.
+First, we can prescribe the boundary traction by adding a term to the free energy rate:
+\begin{equation}
+    \ldots - \int_\Gamma \tau_\Gamma : n\otimes u\,\mathrm d\gamma.
+\end{equation}
+We might instead want to fix the value of the velocity.
+The conventional approach is to modify the linear system at the time of solution to enforce this Dirichlet condition.
+
+Nitsche's method is a way to instead enforce Dirichlet conditions by modifying the variational form.
+One way of looking at Nitsche's method is as an augmented Lagrangian scheme together with an exact solution for the Lagrange multipliers.
+The Nitsche functional is
+\begin{equation}
+    G_\alpha(u, p) = G(u, p) - \int_\Gamma(\tau - pI) : n\otimes(u - u_\Gamma)\mathrm d\gamma + \int_\Gamma\frac{\alpha\mu}{2\ell}|u - u_\Gamma|^2\mathrm d\gamma.
+\end{equation}
+Here $\ell$ is a measure of the local facet diameter and $\alpha$ is a constant related to the mesh regularity.
+
+The symmetric interior penalty discontinuous Galerkin method is what happens when we apply Nitsche's method to every cell $\omega$ of the mesh:
+\begin{align}
+    & G_\alpha(u, p) = \sum_\omega\int_\omega\left\{\frac{1}{2}\tau:\dot\varepsilon - p\nabla\cdot u - f\cdot u\right\}\mathrm dx \nonumber \\
+    & \qquad - \sum_\gamma\int_\gamma \left[(2\mu\dot\varepsilon - pI)\cdot n\right]\cdot [u]\mathrm d\gamma + \sum_\gamma\int_\gamma\frac{\alpha\mu}{2|\gamma|}|[u]|^2\mathrm d\gamma. \label{eq:sipdg-stokes-xyz}
+\end{align}
+In this way, we can use finite element bases that do not meet the continuity requirements of the Stokes equations.
+
+
+% -------------------------------------
+\section{Terrain-following coordinates}
+
+A moving free surface presents an additional challenge because the geometry of the problem is changing in time.
+We can solve this problem -- while creating a host of other problems -- by transforming the coordinates.
+The idea of terrain-following coordinates is to map the lower surface to 0 and the upper surface to 1.
+In so doing, we can work on the Cartesian product of a footprint domain $\Phi$ and the unit interval $[0, 1]$.
+We will denote the Cartesian coordinates as $x_1, x_2, x_3$ and terrain-following coordinate as $\xi_1, \xi_2, \xi_3$.
+The transformation from terrain-following to Cartesian coordinates is
+\begin{equation}
+    \left[\begin{matrix}x_1 \\ x_2 \\ x_3\end{matrix}\right] = \left[\begin{matrix}\xi_1 \\ \xi_2 \\ b(\xi_1, \xi_2) + \xi_3h(\xi_1, \xi_2)\end{matrix}\right].
+\end{equation}
+The complications come in because the surfaces of constant $\xi_3$ are curved.
+Taking a derivative with respect to the horizontal coordinates with the elevation $x_3$ fixed is not the same as taking a derivative with $\xi_3$ fixed.
+We'll show below how to transform the Stokes equations into this new coordinate system.
+In principle, we could compute the metric tensor and then use standard formulas from Riemannian geometry.
+Many earth scientists will be unfamiliar with this subject, so we instead derive the transformations explicitly.
+
+The explicit expression for the transformation from terrain-following to Cartesian coordinates will let us also transform vector and tensor fields and their derivatives.
+First, we'll introduce a vector field
+\begin{equation}
+    \sigma = \nabla b + \xi_3\nabla h
+\end{equation}
+describing the slope in physical space of surfaces of constant $\xi_3$.
+The vector field $\sigma$ interpolates between the slope of the bed and the slope of the surface.
+In the expression for the slope field, we don't have to specify whether we are taking the gradient in one coordinate system or the other because $b$ and $h$ only depend on the horizontal coordinates.
+Then we can concisely express the derivative of the transformation from Cartesian to terrain-following coordinates as
+\begin{equation}
+    J = \frac{\mathrm dx}{\mathrm d\xi} = \left[\begin{matrix}I & 0 \\ \sigma^* & h\end{matrix}\right].
+    \label{eq:dx-dxi}
+\end{equation}
+We now know how to transform integrals into terrain-following coordinates:
+\begin{equation}
+    \mathrm dx = |\det J|\mathrm d\xi = h\,\mathrm d\xi.
+\end{equation}
+As a sanity check, this weighting factor makes the physical units work out correctly.
+
+Now we also have to think about how to transform vectors and tensors between coordinate systems.
+The velocities in Cartesian and terrain-following coordinates are not the same.
+We can derive the relation between them using the chain rule, and reasoning informally that a velocity is a rate of change of position with time:
+\begin{equation}
+    u_x = \frac{\mathrm dx}{\mathrm dt} = \frac{\mathrm dx}{\mathrm d\xi}\frac{\mathrm d\xi}{\mathrm dt} = Ju_\xi.
+\end{equation}
+The body forces transform the same way as well:
+\begin{equation}
+    f_x = Jf_\xi.
+\end{equation}
+Intuitively, the gravitational acceleration vector is perpendicular to surfaces of constant depth but is not perpendicular to surfaces of constant relative depth.
+We can see from the explicit expression for $J$ in equation \eqref{eq:dx-dxi} that, because of the identity block, the only difference is in the vertical components of the velocity and force.
+
+Next we need to be able to transform derivatives.
+To do that, we'll need to know what the derivative of the inverse transformation back from terrain-following to Cartesian coordinates is.
+We could compute the inverse transformation and then differentiate it, or we could use the implicit function theorem and the fact that $J$ is a triangular matrix.
+These yield the explicit expression
+\begin{equation}
+    J^{-1} = \frac{\mathrm d\xi}{\mathrm dx} = \left[\begin{matrix}I & 0 \\ -h^{-1}\sigma^* & h^{-1}\end{matrix}\right].
+\end{equation}
+Given an arbitrary field $\phi$, the chain rule tells us that
+\begin{equation}
+    \frac{\mathrm d\phi}{\mathrm dx} = \frac{\mathrm d\phi}{\mathrm d\xi}\cdot\frac{\mathrm d\xi}{\mathrm dx} = \frac{\mathrm d\phi}{\mathrm d\xi}\cdot J^{-1}.
+\end{equation}
+This is just a restatement of the fact that derivatives transform as covectors and not as vectors.
+We can then write down an expression for the velocity gradient:
+\begin{equation}
+    \nabla_xu_x = \nabla_\xi(Ju_\xi)J^{-1}.
+\end{equation}
+We obtain the strain rate tensor by symmetrizing this expression.
+
+Finally, we need to compute the divergence of a vector field.
+In Cartesian coordinates, the divergence operator is the (negative) adjoint of the gradient operator:
+\begin{equation}
+    \int_\Omega q\nabla_x \cdot v_x\,\mathrm dx = -\int_\Omega\nabla_x q\cdot v_x\,\mathrm dx.
+\end{equation}
+The general expression for the divergence in other coordinate systems follows by requiring this relationship to remain true.
+We know how $\mathrm dx$, $v_x$, and $\nabla_x q$ transform from Cartesian to terrain-following coordinates:
+\begin{align}
+    \ldots & = -\int_{\Phi \times [0, 1]}\nabla_\xi q \,J^{-1}\cdot Ju_\xi\;h\,\mathrm d\xi \nonumber\\
+    & = -\int_{\Phi\times[0, 1]}\nabla_\xi q\cdot h u_\xi\;\mathrm d\xi \nonumber\\
+    & = \int_{\Phi\times[0, 1]}q\nabla_\xi\cdot(hu_\xi)\,\mathrm d\xi.
+\end{align}
+Here we used the fact that the factors of $J^{-1}$ and $J$ cancel out, then applied the usual trick to move the gradient back over as a divegence.
+Now we can assert that defining
+\begin{equation}
+    \nabla_x\cdot u_x = h^{-1}\nabla_\xi\cdot (hu_\xi)
+\end{equation}
+preserves the relationship between the divergence of a vector field and the gradient of a scalar field.
+
+Now we have all of the ingredients that we need to express the minimization form of the Stokes problem in terrain-following coordinates:
+\begin{equation}
+    G(u, p) = \int_\Phi\int_0^1\left\{\frac{1}{2}h\tau :\dot\varepsilon - p\nabla\cdot(hu) - hf\cdot J^*J u\right\}\mathrm d\xi
+\end{equation}
+where the deviatoric stress $\tau$ is again equal to $2\mu\dot\varepsilon$, but the rate of strain tensor is
+\begin{equation}
+    \dot\varepsilon = \frac{1}{2}\left\{\nabla(Ju)J^{-1} + J^{-*}\nabla (Ju)^*\right\}.
+    \label{eq:strain-rate-tfc}
+\end{equation}
+A reader who knows Riemannian geometry will recognize that the metric tensor $J^*J$ has made its entrance in the inner product between the body force and the velocity.
+
+
+
+% -------------------------------------------------------
+\section{Discretization in terrain-following coordinates}
+
+Suppose that we discretize the bed elevation $b$ and thickness $h$ using a standard continuous finite element basis.
+The derivative $J$ of the coordinate transformation involves gradients of $b$ and $h$.
+That means that $J$ is discontinuous across cell boundaries.
+But if we examine expression \eqref{eq:strain-rate-tfc}, $J$ appears under a gradient and we are faced with the problem of how to differentiate a discontinuous quantity.
+This lack of continuity is the major problem we need to overcome.
+We can solve that problem with the interior penalty DG method.
+At a practical level, this amounts to substituting the transformed expressions for $u$ and its derivatives in terrain-following coordinates into the functional in equation \eqref{eq:sipdg-stokes-xyz}.
+
+
+% ----------------------------------
+\section{Testing the implementation}
+
+There are a lot of moving parts in the above, so we have designed a battery of tests to check for any failures in the code.
+First, we solve the Stokes equations in Cartesian coordinates with variable surface and bed topography using a conforming finite element basis.
+Then we will use discontinuous basis functions and the symmetric interior-penalty method.
+Finally, we will transform the problem to terrain-following coordinates.
+If we map the solution in terrain-following coordinates back to Cartesian coordinates and obtain a vector field that differs appreciably from what we obtained in the previous steps, then we will know that the implementation is wrong.
+We will carry out each of these steps on a sequence of meshes and check for convergence at the expected rates.
+
+
+\pagebreak
+
+\bibliographystyle{plainnat}
+\bibliography{stokes-tfc.bib}
+
+\end{document}

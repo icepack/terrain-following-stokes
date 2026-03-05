@@ -1,0 +1,9 @@
+__pycache__/
+.ipynb_checkpoints/
+*.aux
+*.log
+*.pdf
+*.bbl
+*.blg
+*.fls
+*.fdb_latexmk
