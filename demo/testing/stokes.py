@@ -33,17 +33,24 @@ def free_energy_rate_cartesian_dg(**kwargs) -> firedrake.Form:
     ε = sym(grad(u))
     τ = 2 * μ * ε
 
-    α = Constant(kwargs["penalty"])
-
     mesh = ufl.domain.extract_unique_domain(u)
     n = firedrake.FacetNormal(mesh)
 
+    # TODO: quadruple-check the math here
     I = firedrake.Identity(mesh.geometric_dimension)
-    G_power = -inner(jump(τ - p * I, n), jump(u, n)) * dS
-    γ = firedrake.CellSize(mesh)
+    G_power = -inner(jump(τ - p * I, n), jump(u)) * dS
+
+    α = Constant(kwargs["penalty"])
+    γ = avg(firedrake.CellSize(mesh))
     G_penalty = α * μ / (2 * γ) * inner(jump(u), jump(u)) * dS
 
-    return G_conforming + G_power + G_penalty
+    # TODO: add non-zero boundary velocity
+    ids = tuple(kwargs["dirichlet_ids"])
+    u_Γ = Constant((0,) * mesh.geometric_dimension)
+    G_boundary_power = -inner(dot(τ - p * I, n), u - u_Γ) * ds(ids)
+    G_boundary_penalty = α * μ / (2 * γ) * inner(u - u_Γ, u - u_Γ) * ds(ids)
+
+    return G_conforming + G_power + G_penalty + G_boundary_power + G_boundary_penalty
 
 
 def coordinate_transformation_derivative(b, h):

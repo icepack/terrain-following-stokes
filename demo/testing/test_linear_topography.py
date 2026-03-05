@@ -1,7 +1,12 @@
+import argparse
 import firedrake
 from firedrake import Constant
 import matplotlib.pyplot as plt
 import stokes
+
+parser = argparse.ArgumentParser()
+parser.add_argument("--basis", choices=["cg", "hdiv"])
+args = parser.parse_args()
 
 nx, nz = 16, 16
 initial_mesh = firedrake.UnitSquareMesh(nx, nz, diagonal="crossed")
@@ -33,22 +38,33 @@ coefficients = {
     "gravity": 9.81,
 }
 
-cg2 = firedrake.FiniteElement("CG", "triangle", 2)
-cg1 = firedrake.FiniteElement("CG", "triangle", 1)
+if args.basis == "cg":
+    cg2 = firedrake.FiniteElement("CG", "triangle", 2)
+    cg1 = firedrake.FiniteElement("CG", "triangle", 1)
+    V = firedrake.VectorFunctionSpace(mesh, cg2)
+    Q = firedrake.FunctionSpace(mesh, cg1)
+    free_energy_rate = stokes.free_energy_rate_cartesian
+elif args.basis == "hdiv":
+    bdm1 = firedrake.FiniteElement("BDM", "triangle", 1)
+    dg0 = firedrake.FiniteElement("DG", "triangle", 0)
+    V = firedrake.FunctionSpace(mesh, bdm1)
+    Q = firedrake.FunctionSpace(mesh, dg0)
+    free_energy_rate = stokes.free_energy_rate_cartesian_dg
 
-V = firedrake.VectorFunctionSpace(mesh, cg2)
-Q = firedrake.FunctionSpace(mesh, cg1)
+    # TODO: figure out what this should be based on mesh regularity
+    coefficients["penalty"] = 100.0
+
 Z = V * Q
 
 z = firedrake.Function(Z)
 u, p = firedrake.split(z)
-
 fields = {"velocity": u, "pressure": p}
 
 dirichlet_ids = [1, 2, 3]
 bcs = firedrake.DirichletBC(Z.sub(0), 0, dirichlet_ids)
 
-G = stokes.free_energy_rate_cartesian(**fields, **coefficients)
+boundary_data = {"dirichlet_ids": dirichlet_ids}
+G = free_energy_rate(**fields, **coefficients, **boundary_data)
 F = firedrake.derivative(G, z)
 firedrake.solve(F == 0, z, bcs=bcs)
 
