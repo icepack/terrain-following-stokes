@@ -99,7 +99,7 @@ Here $\ell$ is a measure of the local facet diameter and $\alpha$ is a constant 
 The symmetric interior penalty discontinuous Galerkin method is what happens when we apply Nitsche's method to every cell $\omega$ of the mesh:
 \begin{align}
     & G_\alpha(u, p) = \sum_\omega\int_\omega\left\{\frac{1}{2}\tau:\dot\varepsilon - p\nabla\cdot u - f\cdot u\right\}\mathrm dx \nonumber \\
-    & \qquad - \sum_\gamma\int_\gamma \left[(2\mu\dot\varepsilon - pI)\cdot n\right]\cdot [u]\mathrm d\gamma + \sum_\gamma\int_\gamma\frac{\alpha\mu}{2|\gamma|}|[u]|^2\mathrm d\gamma. \label{eq:sipdg-stokes-xyz}
+    & \qquad - \sum_\gamma\int_\gamma \left\langle 2\mu\dot\varepsilon - pI \right\rangle: [u\otimes n]\,\mathrm d\gamma + \sum_\gamma\int_\gamma\frac{\alpha\mu}{2|\gamma|}|[u]|^2\mathrm d\gamma. \label{eq:sipdg-stokes-xyz}
 \end{align}
 In this way, we can use finite element bases that do not meet the continuity requirements of the Stokes equations.
 
@@ -219,12 +219,21 @@ At a practical level, this amounts to substituting the transformed expressions f
 % ----------------------------------
 \section{Testing the implementation}
 
-There are a lot of moving parts in the above, so we have designed a battery of tests to check for any failures in the code.
+There are a lot of moving parts in the derivations above.
+We have designed a battery of tests to catch potential failures of either the math or the code.
+Our first level of testing is to isolate whether our implementation of the interior penalty DG method is correct.
+Implementing this discretization is notoriously error-prone.
+If our solution in terrain-following coordinates is incorrect, it's not immediately apparent whether that's because of a failure in the use of IPDG or in its application in a different coordinate system.
+Testing IPDG alone first can help to pinpoint the source of later failures.
+Once we have some assurances that the IPDG discretization works as expected, we will then test the discretization in terrain-following coordinates.
+We will carry out each of these steps on a sequence of meshes and check for convergence at the expected rates.
+
 First, we solve the Stokes equations in Cartesian coordinates with variable surface and bed topography using a conforming finite element basis.
 Then we will use discontinuous basis functions and the symmetric interior-penalty method.
-Finally, we will transform the problem to terrain-following coordinates.
-If we map the solution in terrain-following coordinates back to Cartesian coordinates and obtain a vector field that differs appreciably from what we obtained in the previous steps, then we will know that the implementation is wrong.
-We will carry out each of these steps on a sequence of meshes and check for convergence at the expected rates.
+If the norm difference between the two solutions does not go to zero as the mesh is refined, then the most likely explanation is that either the math or the implementation of the interior penalty method is incorrect.
+
+The real test comes when we transform the problem to terrain-following coordinates.
+If we map the solution in terrain-following coordinates back to Cartesian coordinates and obtain a vector field that differs appreciably from what we obtained in the previous steps, then we will know that either the math or the implementation is wrong.
 
 
 \pagebreak
