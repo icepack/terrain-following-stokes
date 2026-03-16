@@ -49,7 +49,8 @@ def free_energy_rate_cartesian_dg(**kwargs) -> firedrake.Form:
     u_n = sym(outer(u, n))
     G_power = -inner(avg(τ - p * I), u_n("+") + u_n("-")) * dS
 
-    α = Constant(kwargs["penalty"])
+    # TODO: estimate this based on element degrees and mesh regularity
+    α = Constant(kwargs.get("penalty", 100.0))
     γ = avg(firedrake.CellSize(mesh))
     G_penalty = α * μ / (2 * γ) * inner(jump(u), jump(u)) * dS
 
