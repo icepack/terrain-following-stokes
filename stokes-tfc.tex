@@ -42,7 +42,7 @@
 \newcommand{\Id}[1]{\operatorname{Id} #1}
 
 \title{Simulating the flow of viscous, incompressible fluids with a free surface using terrain-following coordinates}
-\author{Daniel R. Shapero, Emily Wilbur}
+\author{Daniel R. Shapero, Emily Wilbur, Pablo Brubeck}
 \date{}
 
 \begin{document}
@@ -54,10 +54,11 @@
 
 Here we describe discretization schemes for viscous free-surface fluid flows.
 In atmospheric science and oceanography, using terrain-following coordinates is a common approach for handling variable surface and bottom topography.
-For these problems, viscous dissipation is negligible to a good approximation.
-The equations of motion contain only first-order derivatives in space and time.
+For these problems, viscous dissipation is negligible except in a very thin boundary layer.
+As a consequence, the equations of motion contain only first-order derivatives in space and time.
 Here we are interested in other free-surface fluid flows in the earth sciences, such as the flow of glaciers or lava.
-Viscous effects are dominant for these types of flows and so the equations of motion contain second-order derivatives.
+For these types of flows, viscous effects are dominant and the inertial terms are negligble.
+The equations of motion contain second-order derivatives.
 This makes it much harder to apply terrain-following coordinates because the metric terms are discontinuous and live inside a derivative.
 Here we show how to work around this difficulty using discontinuous Galerkin methods.
 
@@ -79,7 +80,7 @@ The incompressible Stokes equations can be derived through minimization of the f
 where $\dot\varepsilon = \frac{1}{2}(\nabla u + \nabla u^*)$ is the rate of strain tensor and $\tau = 2\mu\dot\varepsilon$ is the deviatoric stress tensor.
 We will use the minimization form in the following because it requires fewer characters to type and because I like it.
 
-The description above is not quite complete because we also need to specify boundary conditions.
+The description above requires boundary conditions to be complete.
 We will concern ourselves with two types of boundary conditions.
 First, we can prescribe the boundary traction by adding a term to the free energy rate:
 \begin{equation}
@@ -99,13 +100,16 @@ Here $\ell$ is a measure of the local facet diameter and $\alpha$ is a constant 
 The symmetric interior penalty discontinuous Galerkin method is what happens when we apply Nitsche's method to every cell $\omega$ of the mesh:
 \begin{align}
     & G_\alpha(u, p) = \sum_\omega\int_\omega\left\{\frac{1}{2}\tau:\dot\varepsilon - p\nabla\cdot u - f\cdot u\right\}\mathrm dx \nonumber \\
-    & \qquad - \sum_\gamma\int_\gamma \left\langle 2\mu\dot\varepsilon - pI \right\rangle: [u\otimes n]\,\mathrm d\gamma + \sum_\gamma\int_\gamma\frac{\alpha\mu}{2|\gamma|}|[u]|^2\mathrm d\gamma. \label{eq:sipdg-stokes-xyz}
+    & \qquad - \sum_\gamma\int_\gamma \left\langle\tau - pI \right\rangle: [u\otimes n]\,\mathrm d\gamma + \sum_\gamma\int_\gamma\frac{\alpha\mu}{2|\gamma|}|[u]|^2\mathrm d\gamma \label{eq:sipdg-stokes-xyz}
 \end{align}
-In this way, we can use finite element bases that do not meet the continuity requirements of the Stokes equations.
+where $\langle\cdot\rangle$ denotes the average across a face and $[\cdot]$ denotes the jump.
+With interior penalty methods, we can use finite element bases that do not meet the continuity requirements of the Stokes equations.
 
 
 % -------------------------------------
 \section{Terrain-following coordinates}
+
+\subsection{Transforming vectors and gradients}
 
 A moving free surface presents an additional challenge because the geometry of the problem is changing in time.
 We can solve this problem -- while creating a host of other problems -- by transforming the coordinates.
@@ -119,13 +123,12 @@ The transformation from terrain-following to Cartesian coordinates is
 The complications come in because the surfaces of constant $\xi_3$ are curved.
 Taking a derivative with respect to the horizontal coordinates with the elevation $x_3$ fixed is not the same as taking a derivative with $\xi_3$ fixed.
 We'll show below how to transform the Stokes equations into this new coordinate system.
-In principle, we could compute the metric tensor and then use standard formulas from Riemannian geometry.
-Many earth scientists will be unfamiliar with this subject, so we instead derive the transformations explicitly.
 
 The explicit expression for the transformation from terrain-following to Cartesian coordinates will let us also transform vector and tensor fields and their derivatives.
 First, we'll introduce a vector field
 \begin{equation}
     \sigma = \nabla b + \xi_3\nabla h
+    \label{eq:slope-field}
 \end{equation}
 describing the slope in physical space of surfaces of constant $\xi_3$.
 The vector field $\sigma$ interpolates between the slope of the bed and the slope of the surface.
@@ -184,12 +187,14 @@ We know how $\mathrm dx$, $v_x$, and $\nabla_x q$ transform from Cartesian to te
     & = -\int_{\Phi\times[0, 1]}\nabla_\xi q\cdot h u_\xi\;\mathrm d\xi \nonumber\\
     & = \int_{\Phi\times[0, 1]}q\nabla_\xi\cdot(hu_\xi)\,\mathrm d\xi.
 \end{align}
-Here we used the fact that the factors of $J^{-1}$ and $J$ cancel out, then applied the usual trick to move the gradient back over as a divegence.
+Here we used the fact that the factors of $J^{-1}$ and $J$ cancel out, then applied the usual trick to move the gradient back over as a divergence.
 Now we can assert that defining
 \begin{equation}
     \nabla_x\cdot u_x = h^{-1}\nabla_\xi\cdot (hu_\xi)
 \end{equation}
 preserves the relationship between the divergence of a vector field and the gradient of a scalar field.
+
+\subsection{The Stokes equations in terrain-following coordinates}
 
 Now we have all of the ingredients that we need to express the minimization form of the Stokes problem in terrain-following coordinates:
 \begin{equation}
@@ -200,8 +205,42 @@ where the deviatoric stress $\tau$ is again equal to $2\mu\dot\varepsilon$, but 
     \dot\varepsilon = \frac{1}{2}\left\{\nabla(Ju)J^{-1} + J^{-*}\nabla (Ju)^*\right\}.
     \label{eq:strain-rate-tfc}
 \end{equation}
-A reader who knows Riemannian geometry will recognize that the metric tensor $J^*J$ has made its entrance in the inner product between the body force and the velocity.
+While there are extra terms in this functional compared to the expression in Cartesian coordinates, all of them are expressible in the Unified Form Language or related domain-specfici languages for PDEs.
 
+Let us also mention that we can equally well consider a formulation of the Stokes equations where the deviatoric stress tensor is an additional unknown.
+One possible optimization form of this problem is to find a critical point of the functional
+\begin{equation}
+    L^*(u, p, \tau) = \int_\Omega\left\{\frac{1}{4\mu}|\tau|^2 - \tau :\dot\varepsilon(u) + p\nabla\cdot u + f\cdot u\right\}\mathrm dx.
+\end{equation}
+This form of the problem assumes that the stresses are in $L^2$ and the velocities in $H^1$, whereas it is more common to look for a stress in $H(\text{div})$ and a velocity in $L^2$.
+The velocity-pressure-stress form of the Stokes equations will become more convenient when we have to consider non-Newtonian fluids.
+\textcolor{red}{Write down the velocity-pressure-stress form in terrain-following coordinates}.
+
+Finally, the thickness evolves in time according to a conservative advection equation.
+The variational form of this equation is
+\begin{equation}
+    \int_\Phi\left\{\frac{\partial h}{\partial t}\phi - h\bar u\cdot\nabla\phi\right\}\mathrm dx = \int_\Phi(\dot a - \dot m)\phi\ud x
+\end{equation}
+where $\phi$ is an arbitrary test function, $\bar u$ is the depth-averaged velocity, and $\dot a$, $\dot m$ are the accumulation and ablation rates.
+This equation requires some modification when we discretize, which we describe below.
+
+\subsection{Riemannian geometry (or not)}
+
+A reader who knows Riemannian geometry will recognize that the metric tensor $J^*J$ has made its entrance in the inner product between the body force and the velocity.
+So far we have avoided explicitly using Riemannian geometry.
+There are two reasons for this choice.
+First, many earth scientists will be unfamiliar with the terminology.
+Second, and more to the point, suppose that the bed elevation and thickness have been discretized using continuous Galerkin finite elements.
+Then the slope field $\sigma$ in equation \eqref{eq:slope-field} is discontinuous in the horizontal direction.
+Consequently, \textbf{both the deformation matrix $J$ and the metric tensor are discontinuous}.
+In order to compute covariant derivatives using the usual formulas from Riemannian geometry, we need to calculate the notorious Christoffel symbols.
+But the Christoffel symbols are derivatives of the metric tensor.
+We could treat the Christoffel symbols as distributions but this would be complicated and require linearity.
+We have instead opted for an approach that avoids explicit introduction of metrics, Christoffel symbols, or Riemannian geometry.
+It's possible to approach the problem this way because we are given an explicit isometry into Euclidean space.
+Several other works in the research literature have derived the Navier-Stokes equations in time-dependent curvilinear coordinates without Christoffel symbols for either or both of the reasons we described above.
+\citet{yang1994general} derived a strong form and \citet{cannata2019numerical} a conservation form, both for discretization with the finite volume method.
+We are not aware of any research works examining a variational form or discretization via finite elements.
 
 
 % -------------------------------------------------------
@@ -215,6 +254,10 @@ This lack of continuity is the major problem we need to overcome.
 We can solve that problem with the interior penalty DG method.
 At a practical level, this amounts to substituting the transformed expressions for $u$ and its derivatives in terrain-following coordinates into the functional in equation \eqref{eq:sipdg-stokes-xyz}.
 
+\textcolor{red}{The particular form of $J$ means that we get normal continuity of the velocity in the horizontal direction with any $H(\text{div})$-conforming element like BDFM, so we can use discontinuous pressure.
+If we take a tensor product with the right thing in the vertical and do something sensible for the vertical velocity then we get full $H(\text{div})$-conformity in the whole space.
+Work this out and explain.}
+
 
 % ----------------------------------
 \section{Testing the implementation}
@@ -222,7 +265,7 @@ At a practical level, this amounts to substituting the transformed expressions f
 There are a lot of moving parts in the derivations above.
 We have designed a battery of tests to catch potential failures of either the math or the code.
 Our first level of testing is to isolate whether our implementation of the interior penalty DG method is correct.
-Implementing this discretization is notoriously error-prone.
+Implementing this discretization is notoriously error-prone \citep{houston2018automatic}.
 If our solution in terrain-following coordinates is incorrect, it's not immediately apparent whether that's because of a failure in the use of IPDG or in its application in a different coordinate system.
 Testing IPDG alone first can help to pinpoint the source of later failures.
 Once we have some assurances that the IPDG discretization works as expected, we will then test the discretization in terrain-following coordinates.
@@ -235,6 +278,19 @@ If the norm difference between the two solutions does not go to zero as the mesh
 The real test comes when we transform the problem to terrain-following coordinates.
 If we map the solution in terrain-following coordinates back to Cartesian coordinates and obtain a vector field that differs appreciably from what we obtained in the previous steps, then we will know that either the math or the implementation is wrong.
 
+Our end goal is to solve the Stokes equations using DG methods because the thickness is also discretized.
+But we can test the ideal form of the Stokes equations in an alternative coordinate system by first using exact expressions for the bed and surface topography.
+This test lets us check that we had the correct reformulation of the Stokes equations first, and then check our DG implementation after.
+
+\textcolor{red}{Make a flowchart of the whole test suite.}
+
+
+% ----------------------
+\section{Demonstrations}
+
+Helicoidal flow in an open channel
+
+Ice stream flow across a grounding line
 
 \pagebreak
 
