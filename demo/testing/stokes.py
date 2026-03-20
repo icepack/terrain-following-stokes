@@ -122,27 +122,32 @@ def free_energy_rate_terrain_following_dg(**kwargs) -> firedrake.Form:
     ε = sym(du)
     τ = 2 * μ * ε
     mesh = ufl.domain.extract_unique_domain(u)
-    n = firedrake.FacetNormal(mesh)
+    ids = kwargs["dirichlet_ids"]
+    if mesh.extruded:
+        ids.remove("bottom")
+        dS = firedrake.dS_h + firedrake.dS_v
+        ds = firedrake.ds_v(tuple(ids)) + firedrake.ds_b
+    else:
+        dS = firedrake.dS
+        ds = firedrake.ds(tuple(ids))
 
-    from firedrake import dS_h, dS_v, ds_tb, ds_v
+    n = firedrake.FacetNormal(mesh)
+    I = firedrake.Identity(mesh.geometric_dimension)
 
     # TODO: quadruple-check the math
-    I = firedrake.Identity(mesh.geometric_dimension)
-    #G_power = -inner(avg(τ - p * I), u_n("+") + u_n("-")) * h * dS
     u_n = outer(dot(J, u), dot(n, J_inv))
-    g_power = (-inner(avg(τ), u_n("+") + u_n("-")) + avg(p) * jump(u, n))
-    G_power = g_power * dS_h + g_power * h * dS_v
+    δu_n = u_n("+") + u_n("-")
+    G_power = (-inner(avg(h * τ), δu_n) + avg(p) * jump(h * u, n)) * dS
 
-    α = Constant(kwargs["penalty"])
+    α = Constant(kwargs.get("penalty", 100.0))
     γ = firedrake.CellSize(mesh)
-    g_penalty = α * μ / (2 * avg(γ)) * inner(jump(dot(J, u)), jump(dot(J, u)))
-    G_penalty = g_penalty * dS_h + g_penalty * h * dS_v
+    δu = jump(dot(J, u))
+    G_penalty = α * μ / (2 * avg(γ)) * inner(δu, δu) * avg(h) * dS
 
     u_Γ = Constant((0,) * mesh.geometric_dimension)
-    g_boundary_power = (-inner(τ, u_n) + p * inner(u, n))
-    G_boundary_power = g_boundary_power * ds_tb + g_boundary_power * h * ds_v
+    G_boundary_power = (-inner(τ, u_n) + p * inner(u, n)) * h * ds
 
-    g_boundary_penalty = α * μ / (2 * γ) * inner(dot(J, u - u_Γ), dot(J, u - u_Γ))
-    G_boundary_penalty = g_boundary_penalty * ds_tb + g_boundary_penalty * h * ds_v
+    δu = dot(J, u - u_Γ)
+    G_boundary_penalty = α * μ / (2 * γ) * inner(δu, δu) * h * ds
 
     return G_cells + G_power + G_penalty + G_boundary_power + G_boundary_penalty
