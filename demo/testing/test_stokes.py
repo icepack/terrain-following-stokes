@@ -1,39 +1,16 @@
 import argparse
 import numpy as np
-from numpy import pi as π
 import ufl
 import firedrake
 from firedrake import Constant, dot
 import stokes
+import topography
 
 
 coefficients = {
     "viscosity": 1.0,
     "gravity": 9.81,
 }
-
-
-def topography_linear(ξ):
-    b_0 = Constant(-1.0)
-    b_1 = Constant(-0.5)
-    s_0 = Constant(1.0)
-    s_1 = Constant(0.5)
-
-    bed = (1 - ξ) * b_0 + ξ * b_1
-    surface = (1 - ξ) * s_0 + ξ * s_1
-    thickness = surface - bed
-    return bed, thickness
-
-
-def topography_wavy(ξ, wavenumber=1.0, phase=0.0):
-    s_0 = Constant(1.0)
-    δs = Constant(0.25)
-    k = Constant(wavenumber)
-    φ = Constant(phase)
-    surface = s_0 + δs * firedrake.cos(2 * π * (k * ξ + φ))
-    bed = Constant(0.0) * ξ
-    thickness = surface - bed
-    return bed, thickness
 
 
 def make_elements(basis):
@@ -71,30 +48,7 @@ def solve(fn_space, bed, thickness, terrain_following, free_energy_rate_fn):
         },
     }
     firedrake.solve(F == 0, z, bcs=bcs, **params)
-    u, p = z.subfunctions
-
-    if terrain_following:
-        J = stokes.coordinate_transformation_derivative(bed, thickness)
-        Ju = firedrake.Function(u.function_space()).interpolate(dot(J, u))
-
-        mesh = ufl.domain.extract_unique_domain(u)
-        x, ζ = firedrake.SpatialCoordinate(mesh)
-        expr = firedrake.as_vector((x, bed + thickness * ζ))
-        Vc = mesh.coordinates.function_space()
-        X = firedrake.Function(Vc).interpolate(expr)
-        cartesian_mesh = firedrake.Mesh(X, name=mesh.name)
-
-        V = firedrake.FunctionSpace(cartesian_mesh, u.ufl_element())
-        Q = firedrake.FunctionSpace(cartesian_mesh, p.ufl_element())
-
-        v = firedrake.Function(V)
-        v.dat.data[:] = Ju.dat.data_ro[:]
-        q = firedrake.Function(Q)
-        q.dat.data[:] = p.dat.data_ro[:]
-
-        u, p = v, q
-
-    return u, p
+    return z.subfunctions
 
 
 def main(
@@ -157,7 +111,7 @@ if __name__ == "__main__":
         ) for nx in nxs
     ]
 
-    topo_fns = {"linear": topography_linear, "wavy": topography_wavy}
+    topo_fns = {"linear": topography.linear, "wavy": topography.wavy}
     main_args = [meshes, args.basis, topo_fns[args.topography]]
     tf = args.coordinates == "terrain-following"
     match (args.coordinates, args.basis):
@@ -176,6 +130,8 @@ if __name__ == "__main__":
     filename = f"stokes-{args.topography}-{degree}-{args.basis}-{args.coordinates}.h5"
     with firedrake.CheckpointFile(filename, "w") as chk:
         chk.h5pyfile.attrs["nxs"] = nxs
+        chk.h5pyfile.attrs["topography"] = args.topography
+        chk.h5pyfile.attrs["coordinates"] = args.coordinates
         for (u, p), nx in zip(solutions, nxs):
             chk.save_function(u, name=f"u_{nx}")
             chk.save_function(p, name=f"p_{nx}")
