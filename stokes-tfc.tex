@@ -109,6 +109,21 @@ With interior penalty methods, we can use finite element bases that do not meet 
 % -------------------------------------
 \section{Terrain-following coordinates}
 
+A typical introductory continuum mechanics textbook starts by describing Eulerian (fixed in space and time) and Lagrangian (material-following) reference frames.
+For the most part, it is more common to use a fixed than a moving reference frame for computational fluid dynamics.
+The simplest explanation for this preference is that, for many interesting fluid flows, an initially circular representative volume element can deform into one with a much larger surface-to-volume ratio.
+For many problems, the system is open and so using a material-following coordinate system introduces additional complications at the inflow and outflow boundaries.
+
+For free surface flows, the most common choice is to use \textbf{a reference frame that is fixed in the horizontal but moving in the vertical}.
+This assumption is almost universal but rarely stated outright.
+There are then two choices in how to discretize the problem.
+First, one can use a Cartesian coordinate system and a mesh that moves up and down in the vertical with the fluid flow.
+This is the approach used in e.g. the ice-flow modeling package Elmer/ICE \textcolor{red}{check this, get a reference}.
+Second, one can use a fixed computational mesh and a moving coordinate system.
+This terrain-following approach is used in the ice-flow modeling package SICOPOLIS \textcolor{red}{again check details and get a ref}.
+Here we will pursue the second approach of using a moving coordinate system.
+
+
 \subsection{Transforming vectors and gradients}
 
 A moving free surface presents an additional challenge because the geometry of the problem is changing in time.
@@ -205,7 +220,7 @@ where the deviatoric stress $\tau$ is again equal to $2\mu\dot\varepsilon$, but 
     \dot\varepsilon = \frac{1}{2}\left\{\nabla(Ju)J^{-1} + J^{-*}\nabla (Ju)^*\right\}.
     \label{eq:strain-rate-tfc}
 \end{equation}
-While there are extra terms in this functional compared to the expression in Cartesian coordinates, all of them are expressible in the Unified Form Language or related domain-specfici languages for PDEs.
+While there are extra terms in this functional compared to the expression in Cartesian coordinates, all of them are expressible in the Unified Form Language or related domain-specific languages for PDEs.
 
 Let us also mention that we can equally well consider a formulation of the Stokes equations where the deviatoric stress tensor is an additional unknown.
 One possible optimization form of this problem is to find a critical point of the functional
@@ -235,9 +250,14 @@ Then the slope field $\sigma$ in equation \eqref{eq:slope-field} is discontinuou
 Consequently, \textbf{both the deformation matrix $J$ and the metric tensor are discontinuous}.
 In order to compute covariant derivatives using the usual formulas from Riemannian geometry, we need to calculate the notorious Christoffel symbols.
 But the Christoffel symbols are derivatives of the metric tensor.
-We could treat the Christoffel symbols as distributions but this would be complicated and require linearity.
-We have instead opted for an approach that avoids explicit introduction of metrics, Christoffel symbols, or Riemannian geometry.
-It's possible to approach the problem this way because we are given an explicit isometry into Euclidean space.
+We could treat the Christoffel symbols as distributions.
+If we could do that, the discretization would be more complicated.
+But there is a convincing reason to believe that we cannot do that in the first place.
+There is no well-defined concept of the product of distributions in classic distribution theory.
+We need to (for example) take products of the strain rate tensor with itself in order to compute the dissipation rate, and that would involve products of distributions.
+
+We have instead avoided metrics, Christoffel symbols, or Riemannian geometry.
+It's possible to approach the problem this way because we start with an explicit isometry into Euclidean space.
 Several other works in the research literature have derived the Navier-Stokes equations in time-dependent curvilinear coordinates without Christoffel symbols for either or both of the reasons we described above.
 \citet{yang1994general} derived a strong form and \citet{cannata2019numerical} a conservation form, both for discretization with the finite volume method.
 We are not aware of any research works examining a variational form or discretization via finite elements.
@@ -262,6 +282,11 @@ Work this out and explain.}
 % ----------------------------------
 \section{Testing the implementation}
 
+\begin{figure}
+    \includegraphics[width=0.98\linewidth]{demo/testing/flowchart.pdf}
+    \caption{Flowchart of test suite.}
+\end{figure}
+
 There are a lot of moving parts in the derivations above.
 We have designed a battery of tests to catch potential failures of either the math or the code.
 Our first level of testing is to isolate whether our implementation of the interior penalty DG method is correct.
@@ -281,8 +306,6 @@ If we map the solution in terrain-following coordinates back to Cartesian coordi
 Our end goal is to solve the Stokes equations using DG methods because the thickness is also discretized.
 But we can test the ideal form of the Stokes equations in an alternative coordinate system by first using exact expressions for the bed and surface topography.
 This test lets us check that we had the correct reformulation of the Stokes equations first, and then check our DG implementation after.
-
-\textcolor{red}{Make a flowchart of the whole test suite.}
 
 
 % ----------------------

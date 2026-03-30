@@ -1,0 +1,28 @@
+digraph testsuite {
+    rankdir=LR;
+    ground_truth [label="XYZ\nu: CG²\np: CG¹"];
+    xyz_dg [label="XYZ\nu: BDM\np: DG"];
+    tfc_cg [label="TFC\nu: CG²\np: CG¹\nh: ∞"];
+    tfc_dg [label="TFC\nu: BDM\np: DG\nh: ∞"];
+    tfc_discrete_h [label="TFC\nu: CG²\np: CG¹\nh: CG¹"];
+    tfc_dg_discrete_h [label="TFC\nu: BDM\np: DG\nh: CG¹"];
+    xyz_vps [label="XYZ\nu: CG²\np: CG¹\nτ: DG¹"]
+
+
+    dg_correct [shape=none, label="Is DG\ncorrect?"];
+    tfc_correct [shape=none, label="Is TFC\ncorrect?"];
+    tfc_dg_correct [shape=none, label="Is TFC + DG\ncorrect?"];
+    discrete_h_correct [shape=none, label="Is discrete h\ncorrect?"];
+    tfc_discrete_h_correct [shape=none, label="Is discrete h\n+ TFC correct?"];
+    vps_correct [shape=none, label="Is velocity/pressure/\nstress correct?"];
+
+    ground_truth -> dg_correct [arrowhead=none]; dg_correct -> xyz_dg;
+    ground_truth -> tfc_correct [arrowhead=none]; tfc_correct -> tfc_cg;
+    tfc_cg -> tfc_dg_correct [arrowhead=none];
+    xyz_dg -> tfc_dg_correct [arrowhead=none]; tfc_dg_correct -> tfc_dg;
+    tfc_dg_correct -> tfc_discrete_h;
+    tfc_cg -> discrete_h_correct [arrowhead=none]; discrete_h_correct -> tfc_discrete_h;
+    tfc_dg -> tfc_discrete_h_correct [arrowhead=none]; tfc_discrete_h_correct -> tfc_dg_discrete_h;
+    tfc_discrete_h -> tfc_discrete_h_correct [arrowhead=none];
+    ground_truth -> vps_correct [arrowhead=none]; vps_correct -> xyz_vps;
+}
