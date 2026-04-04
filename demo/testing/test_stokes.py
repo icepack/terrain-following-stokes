@@ -1,4 +1,5 @@
 import argparse
+import itertools
 import numpy as np
 import ufl
 import firedrake
@@ -26,10 +27,9 @@ def make_elements(basis):
         raise ValueError("`basis` must be either `cg` or `hdiv`!")
 
 
-def solve(fn_space, bed, thickness, terrain_following, free_energy_rate_fn):
+def solve(fn_space, bed, thickness, free_energy_rate_fn):
     z = firedrake.Function(fn_space)
     u, p = firedrake.split(z)
-    # TODO: fix this up for when we use Functions, not expressions
     fields = {"velocity": u, "pressure": p, "bed": bed, "thickness": thickness}
 
     dirichlet_ids = [1, 2, "bottom"]
@@ -51,40 +51,26 @@ def solve(fn_space, bed, thickness, terrain_following, free_energy_rate_fn):
     return z.subfunctions
 
 
-def main(
-    meshes,
-    basis,
-    topo_fn,
-    terrain_following,
-    free_energy_rate_fn,
-    topo_degree=None,
-    verbose=True
+def solve_sequence(
+    meshes, basis, topo_fn, free_energy_rate_fn, topo_degree, verbose=True
 ):
     u_element, p_element = make_elements(basis)
-
     solutions = []
-    for initial_mesh in meshes:
-        lx = Constant(initial_mesh.coordinates.dat.data_ro[:, 0].max())
-        x, ζ = firedrake.SpatialCoordinate(initial_mesh)
-        b, h = topo_fn(x / lx)
-        fn_space = initial_mesh.coordinates.function_space()
-        z = ζ if terrain_following else b + h * ζ
-        expr = firedrake.as_vector((x, z))
-        X = firedrake.Function(fn_space).interpolate(expr)
-        mesh = firedrake.Mesh(X, name=f"domain_{initial_mesh.name}")
+    for mesh in meshes:
         V = firedrake.FunctionSpace(mesh, u_element)
         Q = firedrake.FunctionSpace(mesh, p_element)
         Z = V * Q
 
+        lx = Constant(mesh.coordinates.dat.data_ro[:, 0].max())
         b, h = topo_fn(firedrake.SpatialCoordinate(mesh)[0] / lx)
-        if topo_degree != None:
+        if topo_degree != "inf":
             cg = firedrake.FiniteElement("CG", "interval", topo_degree)
             r = firedrake.FiniteElement("R", "interval", 0)
             topo_element = firedrake.TensorProductElement(cg, r)
             S = firedrake.FunctionSpace(mesh, topo_element)
             b = firedrake.Function(S).interpolate(b)
             h = firedrake.Function(S).interpolate(h)
-        u, p = solve(Z, b, h, terrain_following, free_energy_rate_fn)
+        u, p = solve(Z, b, h, free_energy_rate_fn)
         solutions.append((u, p))
         if verbose:
             print(".", end="", flush=True)
@@ -94,44 +80,51 @@ def main(
     return solutions
 
 
-if __name__ == "__main__":
-    import argparse
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--topography", choices=["linear", "wavy"])
-    parser.add_argument("--basis", choices=["cg", "hdiv"])
-    parser.add_argument("--coordinates", choices=["cartesian", "terrain-following"])
-    parser.add_argument("--topo-degree", type=int)
-    args = parser.parse_args()
+# TODO: this is real dog ass
+def get_free_energy_rate_function(coordinates, basis, topo_degree):
+    match (coordinates, basis, topo_degree):
+        case ("xyz", "cg", _):
+            return stokes.free_energy_rate_cartesian
+        case ("xyz", "hdiv", _):
+            return stokes.free_energy_rate_cartesian_dg
+        case ("tfc", "cg", "inf"):
+            return stokes.free_energy_rate_terrain_following
+        case ("tfc", "cg", _):
+            return stokes.free_energy_rate_terrain_following_dg
+        case ("tfc", "hdiv", _):
+            return stokes.free_energy_rate_terrain_following_dg
 
-    nxs = [16, 20, 24, 32, 48, 64, 72, 84, 96, 108, 128]
-    lx = 5.0
-    meshes = [
-        firedrake.ExtrudedMesh(
-            firedrake.IntervalMesh(nx, lx, name=f"ival_{nx}"), nx, name=f"rect_{nx}"
-        ) for nx in nxs
-    ]
 
-    topo_fns = {"linear": topography.linear, "wavy": topography.wavy}
-    main_args = [meshes, args.basis, topo_fns[args.topography]]
-    tf = args.coordinates == "terrain-following"
-    match (args.coordinates, args.basis):
-        case ("cartesian", "cg"):
-            G_fn = stokes.free_energy_rate_cartesian
-        case ("cartesian", "hdiv"):
-            G_fn = stokes.free_energy_rate_cartesian_dg
-        case ("terrain-following", "cg"):
-            G_fn = stokes.free_energy_rate_terrain_following
-        case ("terrain-following", "hdiv"):
-            G_fn = stokes.free_energy_rate_terrain_following_dg
-            main_args[1] = "cg"
-    solutions = main(*main_args, tf, G_fn, args.topo_degree)
+parser = argparse.ArgumentParser()
+parser.add_argument("--filename")
+args=  parser.parse_args()
 
-    degree = str(args.topo_degree or "inf")
-    filename = f"stokes-{args.topography}-{degree}-{args.basis}-{args.coordinates}.h5"
-    with firedrake.CheckpointFile(filename, "w") as chk:
-        chk.h5pyfile.attrs["nxs"] = nxs
-        chk.h5pyfile.attrs["topography"] = args.topography
-        chk.h5pyfile.attrs["coordinates"] = args.coordinates
+configs = [
+    ("xyz", "cg", "inf"),
+    ("xyz", "hdiv", "inf"),
+    ("tfc", "cg", "inf"),
+    ("tfc", "cg", 1),
+    ("tfc", "cg", 2),
+    ("tfc", "hdiv", "inf"),
+    ("tfc", "hdiv", 1),
+    ("tfc", "hdiv", 2),
+]
+
+for (coords, basis, degree) in configs:
+    print(f"{coords} | {basis:4} | {degree}")
+    with firedrake.CheckpointFile(args.filename, "r") as chk:
+        nxs = chk.h5pyfile.attrs["nxs"]
+        topo_name = chk.h5pyfile.attrs["topography"]
+        prefix = ("domain_" if coords == "xyz" else "") + "rect"
+        meshes = [chk.load_mesh(f"{prefix}_{nx}") for nx in nxs]
+
+    topo_fn = getattr(topography, topo_name)
+    G = get_free_energy_rate_function(coords, basis, degree)
+    solutions = solve_sequence(meshes, basis, topo_fn, G, degree)
+
+    crd = coords + ("" if coords == "xyz" else f"_{degree}")
+    info = f"{crd}_{basis}"
+    with firedrake.CheckpointFile(args.filename, "a") as chk:
         for (u, p), nx in zip(solutions, nxs):
-            chk.save_function(u, name=f"u_{nx}")
-            chk.save_function(p, name=f"p_{nx}")
+            chk.save_function(u, name=f"u_{info}_{nx}")
+            chk.save_function(p, name=f"p_{info}_{nx}")

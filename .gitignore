@@ -8,3 +8,4 @@ __pycache__/
 *.blg
 *.fls
 *.fdb_latexmk
+*.png
