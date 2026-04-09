@@ -178,6 +178,7 @@ We could compute the inverse transformation and then differentiate it, or we cou
 These yield the explicit expression
 \begin{equation}
     J^{-1} = \frac{\mathrm d\xi}{\mathrm dx} = \left[\begin{matrix}I & 0 \\ -h^{-1}\sigma^* & h^{-1}\end{matrix}\right].
+    \label{eq:dxi-dx}
 \end{equation}
 Given an arbitrary field $\phi$, the chain rule tells us that
 \begin{equation}
@@ -187,6 +188,7 @@ This is just a restatement of the fact that derivatives transform as covectors a
 We can then write down an expression for the velocity gradient:
 \begin{equation}
     \nabla_xu_x = \nabla_\xi(Ju_\xi)J^{-1}.
+    \label{eq:velocity-gradient}
 \end{equation}
 We obtain the strain rate tensor by symmetrizing this expression.
 
@@ -214,6 +216,7 @@ preserves the relationship between the divergence of a vector field and the grad
 Now we have all of the ingredients that we need to express the minimization form of the Stokes problem in terrain-following coordinates:
 \begin{equation}
     G(u, p) = \int_\Phi\int_0^1\left\{\frac{1}{2}h\tau :\dot\varepsilon - p\nabla\cdot(hu) - hf\cdot J^*J u\right\}\mathrm d\xi
+    \label{eq:stokes-tfc}
 \end{equation}
 where the deviatoric stress $\tau$ is again equal to $2\mu\dot\varepsilon$, but the rate of strain tensor is
 \begin{equation}
@@ -273,10 +276,25 @@ But if we examine expression \eqref{eq:strain-rate-tfc}, $J$ appears under a gra
 This lack of continuity is the major problem we need to overcome.
 We can solve that problem with the interior penalty DG method.
 At a practical level, this amounts to substituting the transformed expressions for $u$ and its derivatives in terrain-following coordinates into the functional in equation \eqref{eq:sipdg-stokes-xyz}.
+For the integrals over cells $\omega$, this transformation is straightforward and already contained in equations \eqref{eq:stokes-tfc} and \eqref{eq:strain-rate-tfc}.
+The major change is in the facet integrals.
+Here there is one subtlety that can easily lead to mistakes.
+The velocity $u$ transforms as a vector, but the unit outward-pointing normal $n$ instead transforms as a covector.
+The easiest way to remember how $n$ transforms is to recall that it is the gradient of the signed distance function to the boundary of the domain.
+We can then more properly think of $n$ as a row vector which should be right-multiplied by $J^{-1}$.
+The analogue of equation \eqref{eq:sipdg-stokes-xyz} in terrain-following coordinates is then
+\begin{align}
+    G_\alpha(u, p) & = \sum_\omega\int_\omega\int_0^1\left\{\frac{1}{2}h\tau:\dot\varepsilon - p\nabla\cdot(h u) - hf\cdot J^*Ju\right\}\ud\zeta \mathrm d\xi \nonumber \\
+    & \qquad - \sum_\gamma\int_\gamma\int_0^1\left\{\left\langle h\tau\right\rangle:[Ju\otimes n\,J^{-1}] + \langle p\rangle[hu\cdot n] \right\}\ud\zeta\ud\gamma \\
+    & \quad\qquad + \sum_\gamma\int_\gamma\int_0^1\frac{\alpha\mu}{2|\gamma|}|[Ju]|^2\, \langle h\rangle\ud\zeta\ud\gamma.
+\end{align}
+Even if we used the Taylor-Hood or MINI velocity-pressure pair, we would still need the facet integrals in order to account for the discontinuity in $J$ when the bed elevation and thickness are discretized in a finite element space.
 
-\textcolor{red}{The particular form of $J$ means that we get normal continuity of the velocity in the horizontal direction with any $H(\text{div})$-conforming element like BDFM, so we can use discontinuous pressure.
-If we take a tensor product with the right thing in the vertical and do something sensible for the vertical velocity then we get full $H(\text{div})$-conformity in the whole space.
-Work this out and explain.}
+In Cartesian coordinates, we can use $H(\text{div})$-conforming elements like Brezzi-Douglas-Marini for the velocity in order to obtain better mass conservation properties and pressure robustness.
+These elements not fully discontinuous; instead, they have continuous normal components.
+This property guarantees that the divergence of the discrete velocity space is a subspace of the pressure space.
+It is a good question to ask whether we can preserve this property in a general curvilinear coordinate system, where the divergence operator picks up a factor of the determinant of $J$.
+In our case, since we use continuous finite elements for $h$, and $h$ depends only on the horizontal coordinates and not the vertical coordinate, an $H(\text{div})$-conforming element for the velocity still retains all of its desirable properties even with a different divergence operator.
 
 
 % ----------------------------------
@@ -289,23 +307,73 @@ Work this out and explain.}
 
 There are a lot of moving parts in the derivations above.
 We have designed a battery of tests to catch potential failures of either the math or the code.
-Our first level of testing is to isolate whether our implementation of the interior penalty DG method is correct.
-Implementing this discretization is notoriously error-prone \citep{houston2018automatic}.
-If our solution in terrain-following coordinates is incorrect, it's not immediately apparent whether that's because of a failure in the use of IPDG or in its application in a different coordinate system.
-Testing IPDG alone first can help to pinpoint the source of later failures.
-Once we have some assurances that the IPDG discretization works as expected, we will then test the discretization in terrain-following coordinates.
-We will carry out each of these steps on a sequence of meshes and check for convergence at the expected rates.
+We describe each of our tests and the kinds of errors that they caught below.
+At a high level, we first solving the Stokes equations on a fixed geometry and then test solving the Stokes equations with a time-evolving geometry.
 
-First, we solve the Stokes equations in Cartesian coordinates with variable surface and bed topography using a conforming finite element basis.
-Then we will use discontinuous basis functions and the symmetric interior-penalty method.
+The ideal test case would use an analytical solution.
+With a variable topography, however, there are few useful closed-form solutions.
+We settled on first constructing a ``ground truth'' solution which can be presumed correct.
+For example, the highest-level ground truth solution is obtained by solving the Stokes equations in Cartesian coordinates on a mesh with variable topography using Taylor-Hood elements.
+The key code to express the variational form is three lines of Python code using Firedrake.
+It has fewer potential error modes than, say, using a discontinuous Galerkin discretization, terrain-following coordinates, or both.
+We can then compare the alternative solutions to the numerical ground truth.
+
+\subsection{Static problems}
+
+The tests on static problems are fine-grained because several error-prone elements need to be correct.
+For example, our goal at this stage is to solve the Stokes problem in terrain-following coordinates where the thickness and bed topography are discretized in a finite element space.
+Suppose that the numerical solution we obtain does not map onto the corresponding solution in Cartesian coordinates.
+The variational form requires DG facet terms, even when we use conforming elements for velocity and pressure, because of the discontinuity in the matrix $J$ described above.
+It's not obvious right away whether this discrepancy is because of a mistake in the facet integrals or in the derivatives of the coordinate transformation.
+We can pinpoint the source of this failure by instead first testing in isolation (1) a DG method in Cartesian coordinates against a conforming method and (2) a conforming method in terrain-following coordinates where the thickness and bed elevation are described exactly through their analytical expressions rather than discretized in a finite element space.
+
+\paragraph{DG discretization in Cartesian coordinates.}
+Our first test is to isolate whether the implementation of the interior penalty DG method is correct on a Cartesian mesh, without the complication of a curvilinear coordinate system.
+We solve the Stokes equations in Cartesian coordinates with variable surface and bed topography using Taylor-Hood elements.
+Then we use non-conforming elements and the symmetric interior-penalty method.
 If the norm difference between the two solutions does not go to zero as the mesh is refined, then the most likely explanation is that either the math or the implementation of the interior penalty method is incorrect.
+Implementing the symmetric interior penalty method is notoriously error-prone \citep{houston2018automatic}.
+A typical error in implementing a DG discretization would be making a sign error in the facet flux term.
 
-The real test comes when we transform the problem to terrain-following coordinates.
-If we map the solution in terrain-following coordinates back to Cartesian coordinates and obtain a vector field that differs appreciably from what we obtained in the previous steps, then we will know that either the math or the implementation is wrong.
+\paragraph{Conforming discretization in exact terrain-following coordinates.}
+Our next test is to evaluate whether we have implemented terrain-following coordinates correctly, assuming that we have an analytical expression for the fluid thickness and the bed elevation.
+This assumption lets us sidestep the issues associated with discretizing these fields in a finite element space.
+Here we can use Taylor-Hood, MINI, or other conforming elements for the velocity and pressure with no DG correction terms.
+If we map the solution in terrain-following coordinates back to Cartesian coordinates and obtain a vector field that differs from what we obtained in the previous steps, then either the math or the implementation is wrong.
+This stage of testing caught errors in the translation of math to code.
+In our first pass, we missed a factor of $h$ in one of the terms of the variational form and inserted an extra factor of $J$ in the force term.
 
-Our end goal is to solve the Stokes equations using DG methods because the thickness is also discretized.
-But we can test the ideal form of the Stokes equations in an alternative coordinate system by first using exact expressions for the bed and surface topography.
-This test lets us check that we had the correct reformulation of the Stokes equations first, and then check our DG implementation after.
+\paragraph{Non-conforming discretization in exact terrain-following coordinates.}
+A non-conforming discretization using the symmetric interior penalty method introduces additional terms into the variational form.
+Specifically, these are facet integrals that force the solutions toward continuity and boundary integrals.
+A common mistake in implementing the symmetric interior penalty method is mixing up the sign of the facet integrals, but this is largely caught and debugged by the implementation in Cartesian coordinates.
+Another common mistake is forgetting factors of $h$, i.e. the Jacobian of the transformation from Cartesian to terrain-following coordinates, in the cell integrals.
+This mistake will have been caught in testing the implemenation of a conforming discretization in Cartesian coordinates.
+
+The new mistake that is likely to appear only at this stage is getting the factors of the Jacobian or its inverse correct in the facet integrals.
+The velocity field transforms as a vector and so it picks up a factor of $J$ in transforming to terrain-following coordinates.
+But the unit outward-pointing normal vector is not a vector but a covector, and so it transforms by multiplying on the right by $J^{-1}$.
+During our first pass at implementing terrain-following coordinates with a non-conforming discretization, we made the mistake of thinking of the unit outward-pointing normal as a vector rather than a covector.
+The numerical solutions remained a positive distance apart from the conforming solution in the limit of mesh refinement.
+The more interesting feature to note here is that these are mistakes in understanding the math rather than mistakes in translating math to code.
+
+\paragraph{Conforming discretization in discrete terrain-following coordinates.}
+A parallel but related test to using a non-conforming discretization is what happens when the bed elevation $b$ and fluid thickness $h$ are not known exactly but instead are discretized with continuous finite elements.
+The derivative $J$ of the transformation from terrain-following to Cartesian coordinates, defined explicitly in equation \eqref{eq:dx-dxi}, is now discontinuous across cell boundaries.
+This matrix $J$ appears under a spatial derivative in the expression in equation \eqref{eq:velocity-gradient} for the velocity gradient.
+Even if we use Taylor-Hood or MINI elements for the velocity and pressure, we need to include the facet integrals that are normally used only for non-conforming methods in order to correctly discretize the problem when $b$ and $h$ are discretized.
+
+This stage of testing has the same error modes as implementing a non-conforming discretization with an exact geometry.
+\textcolor{red}{\textbf{I found that the solutions converge only when the bed elevation and fluid thickness are discretized in the space $CG^2$ of piecewise-quadratic functions, and did not converge using $CG^1$ elements.}
+It's not clear at this juncture if this is a fundamental limitation and we really cannot use $CG^1$ elements, or if there is a bug in the code and we should be able to use $CG^1$ elements.
+\textbf{ATTN all coauthors this is what I need help with.}}
+
+\paragraph{Non-conforming discretization in discrete terrain-following coordinates.}
+This is the final stage before testing time-dependent problems and includes all of the features we desire for our discretization of the momentum balance equation.
+This test was successful on the first pass because all of the mistakes had already been made in the previous two stages.
+
+
+\subsection{Time-evolving problems}
 
 
 % ----------------------
