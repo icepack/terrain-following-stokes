@@ -20,6 +20,24 @@
 \usepackage[makeroom]{cancel}
 \usepackage[only,llbracket,rrbracket]{stmaryrd}
 
+\usepackage{upgreek}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{inconsolata}
+\usepackage{listings}
+\lstset{
+    language=Python,
+    basicstyle=\ttfamily\small,
+    extendedchars=true,
+    breaklines=true,
+    literate=
+    {ε}{{\ensuremath{\upvarepsilon}}}1
+    {τ}{{\ensuremath{\uptau}}}1
+    {μ}{{\ensuremath{\upmu}}}1
+    {α}{{\ensuremath{\upalpha}}}1
+    {γ}{{\ensuremath{\upgamma}}}1
+}
+
 %\linenumbers
 %\doublespacing
 
@@ -80,6 +98,32 @@ The incompressible Stokes equations can be derived through minimization of the f
 where $\dot\varepsilon = \frac{1}{2}(\nabla u + \nabla u^*)$ is the rate of strain tensor and $\tau = 2\mu\dot\varepsilon$ is the deviatoric stress tensor.
 We will use the minimization form in the following because it requires fewer characters to type and because I like it.
 
+\begin{figure}
+\begin{lstlisting}
+from firedrake import inner, sym, grad, div, dx, ds, dS, avg, jump
+
+
+def free_energy_rate(u, p, f):
+    ε = sym(grad(u))
+    τ = 2 * μ * ε
+    return (0.5 * inner(τ, ε) - p * div(u) - inner(f, u)) * dx
+
+
+def free_energy_rate_dg(u, p, f, α):
+    n = firedrake.FacetNormal(mesh)
+    γ = avg(firedrake.CellSize(mesh))
+    dim = u.ufl_shape[0]
+    I = firedrake.Identity(dim)
+
+    G_flux = -inner(avg(τ - p * I), jump(u, n)) * dS
+    G_penalty = α * μ / (2 * γ) * inner(jump(u), jump(u)) * dS
+
+    return free_energy_rate(u, p, f) + G_flux + G_penalty
+\end{lstlisting}
+\caption{Source code to produce the free energy dissipation rate for the Stokes equations in Cartesian coordinates using both conforming and non-conforming finite elements.}
+\label{fig:source-code-xyz}
+\end{figure}
+
 The description above requires boundary conditions to be complete.
 We will concern ourselves with two types of boundary conditions.
 First, we can prescribe the boundary traction by adding a term to the free energy rate:
@@ -104,6 +148,7 @@ The symmetric interior penalty discontinuous Galerkin method is what happens whe
 \end{align}
 where $\langle\cdot\rangle$ denotes the average across a face and $[\cdot]$ denotes the jump.
 With interior penalty methods, we can use finite element bases that do not meet the continuity requirements of the Stokes equations.
+Figure \ref{fig:source-code-xyz} shows the source code for producing the free energy rate in Cartesian coordinates for both conforming and non-conforming elements.
 
 
 % -------------------------------------
@@ -269,6 +314,43 @@ We are not aware of any research works examining a variational form or discretiz
 % -------------------------------------------------------
 \section{Discretization in terrain-following coordinates}
 
+\begin{figure}
+\begin{lstlisting}
+def free_energy_rate_tfc(u, p, f, b, h):
+    J = coordinate_transformation_derivative(b, h)
+    J_inv = coordinate_transformation_derivative_inverse(b, h)
+
+    du = dot(grad(dot(J, u)), J_inv)
+    ε = sym(du)
+    τ = 2 * μ * ε
+
+    return (
+        0.5 * h * inner(τ, ε)
+        - p * div(h * u)
+        - h * inner(f, dot(J, u))
+    ) * dx
+
+
+def free_energy_rate_tfc_dg(u, p, f, b, h):
+    J = coordinate_transformation_derivative(b, h)
+    J_inv = coordinate_transformation_derivative_inverse(b, h)
+    n = firedrake.FacetNormal(mesh)
+    γ = avg(firedrake.CellSize(mesh))
+
+    G_flux = (
+        -inner(avg(h * τ), jump(dot(J, u), dot(n, J_inv)))
+        + avg(p) * jump(h * u, n)
+    ) * dS
+    du = jump(dot(J, u))
+    G_penalty = α * μ / (2 * γ) * inner(du, du) * avg(h) * dS
+
+    return free_energy_rate_tfc(u, p, f, b, h) + G_flux + G_penalty
+
+\end{lstlisting}
+\caption{Python source code to form the free energy dissipation rate for the Stokes equations in terrain-following coordinates.}
+\label{fig:source-code-tfc}
+\end{figure}
+
 Suppose that we discretize the bed elevation $b$ and thickness $h$ using a standard continuous finite element basis.
 The derivative $J$ of the coordinate transformation involves gradients of $b$ and $h$.
 That means that $J$ is discontinuous across cell boundaries.
@@ -295,6 +377,9 @@ These elements not fully discontinuous; instead, they have continuous normal com
 This property guarantees that the divergence of the discrete velocity space is a subspace of the pressure space.
 It is a good question to ask whether we can preserve this property in a general curvilinear coordinate system, where the divergence operator picks up a factor of the determinant of $J$.
 In our case, since we use continuous finite elements for $h$, and $h$ depends only on the horizontal coordinates and not the vertical coordinate, an $H(\text{div})$-conforming element for the velocity still retains all of its desirable properties even with a different divergence operator.
+
+The source code to produce the free energy rate for the Stokes equations in terrain-following coordinates with both conforming and non-conforming elements is shown in Figure \ref{fig:source-code-tfc}.
+The function \texttt{free\_energy\_rate\_tfc\_dg}, which adds the corrections to the free energy rate that are usually associated with non-conforming elements, is used also for conforming elements when the thickness is discretized.
 
 
 % ----------------------------------
