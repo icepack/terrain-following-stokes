@@ -147,8 +147,33 @@ The symmetric interior penalty discontinuous Galerkin method is what happens whe
     & \qquad - \sum_\gamma\int_\gamma \left\langle\tau - pI \right\rangle: [u\otimes n]\,\mathrm d\gamma + \sum_\gamma\int_\gamma\frac{\alpha\mu}{2|\gamma|}|[u]|^2\mathrm d\gamma \label{eq:sipdg-stokes-xyz}
 \end{align}
 where $\langle\cdot\rangle$ denotes the average across a face and $[\cdot]$ denotes the jump.
+To be completely explicit, the jump of the velocity is
+\begin{equation}
+    [u\otimes n] = u_+\otimes n_+ + u_-\otimes n_-
+\end{equation}
+where the ``$+$'' and ``$-$'' denote each side of the facet $\gamma$ that the jump is evaluated on.
+We can catch potential errors in the variational form by remembering that the DG facet fluxes should be the same if we swap which side of a facet is the ``$+$'' side and which is the ``$-$'' side.
+\textcolor{red}{\textbf{ATTN coauthors I think I implemented what's in the Cockburn (2005) paper correctly but I have not slept in 3 years please check my math.}}
 With interior penalty methods, we can use finite element bases that do not meet the continuity requirements of the Stokes equations.
 Figure \ref{fig:source-code-xyz} shows the source code for producing the free energy rate in Cartesian coordinates for both conforming and non-conforming elements.
+
+In the test cases below, we used two families of elements.
+We used the BDMCF element for the velocities and DQ for pressure on quadratic elements in 2D.
+\textcolor{red}{\textbf{ATTN coauthors, need help here.
+I can get this to work for BDMCF${}_1$ $\times$ DQ${}_0$ but not higher order.
+I can also get it to work with (DQ${}_{k + 1}$)${}^2$ $\times$ DQ${}_k$ for higher $k$ but that's completely non-conforming and I'd rather have H(div)-conforming.}}
+
+We can also consider a formulation of the Stokes problem where the stress tensor is an additional unknown.
+Although more expensive, this form will be indispensible for simulating non-Newtonian fluid flows.
+There are several equivalent mixed forms of the Stokes problem.
+Here we use the deviatoric stress tensor; it is also possible to use the full stress tensor.
+The optimization form of this problem is to find a critical point of the functional
+\begin{equation}
+    L^*(u, p, \tau) = \int_\Omega\left\{\frac{1}{4\mu}|\tau|^2 - \tau :\dot\varepsilon(u) + p\nabla\cdot u + f\cdot u\right\}\mathrm dx.
+\end{equation}
+This form of the problem assumes that the stresses are in $L^2(\Omega, \mathbb S)$ and the velocities in $H^1(\Omega, \mathbb{R}^d)$.
+It is more common to look for a stress in $H(\text{div})$ and a velocity in $L^2$.
+We will use a non-conforming discretization in the end, so these distinctions will become unimportant.
 
 
 % -------------------------------------
@@ -270,15 +295,6 @@ where the deviatoric stress $\tau$ is again equal to $2\mu\dot\varepsilon$, but 
 \end{equation}
 While there are extra terms in this functional compared to the expression in Cartesian coordinates, all of them are expressible in the Unified Form Language or related domain-specific languages for PDEs.
 
-Let us also mention that we can equally well consider a formulation of the Stokes equations where the deviatoric stress tensor is an additional unknown.
-One possible optimization form of this problem is to find a critical point of the functional
-\begin{equation}
-    L^*(u, p, \tau) = \int_\Omega\left\{\frac{1}{4\mu}|\tau|^2 - \tau :\dot\varepsilon(u) + p\nabla\cdot u + f\cdot u\right\}\mathrm dx.
-\end{equation}
-This form of the problem assumes that the stresses are in $L^2$ and the velocities in $H^1$, whereas it is more common to look for a stress in $H(\text{div})$ and a velocity in $L^2$.
-The velocity-pressure-stress form of the Stokes equations will become more convenient when we have to consider non-Newtonian fluids.
-\textcolor{red}{Write down the velocity-pressure-stress form in terrain-following coordinates}.
-
 Finally, the thickness evolves in time according to a conservative advection equation.
 The variational form of this equation is
 \begin{equation}
@@ -286,6 +302,8 @@ The variational form of this equation is
 \end{equation}
 where $\phi$ is an arbitrary test function, $\bar u$ is the depth-averaged velocity, and $\dot a$, $\dot m$ are the accumulation and ablation rates.
 This equation requires some modification when we discretize, which we describe below.
+
+\textcolor{red}{TODO for Daniel: write the velocity-pressure-stress form in terrain-following coordinates.}
 
 \subsection{Riemannian geometry (or not)}
 
@@ -377,6 +395,7 @@ These elements not fully discontinuous; instead, they have continuous normal com
 This property guarantees that the divergence of the discrete velocity space is a subspace of the pressure space.
 It is a good question to ask whether we can preserve this property in a general curvilinear coordinate system, where the divergence operator picks up a factor of the determinant of $J$.
 In our case, since we use continuous finite elements for $h$, and $h$ depends only on the horizontal coordinates and not the vertical coordinate, an $H(\text{div})$-conforming element for the velocity still retains all of its desirable properties even with a different divergence operator.
+\textcolor{red}{\textbf{But see previous note on BDMCF at higher degree.}}
 
 The source code to produce the free energy rate for the Stokes equations in terrain-following coordinates with both conforming and non-conforming elements is shown in Figure \ref{fig:source-code-tfc}.
 The function \texttt{free\_energy\_rate\_tfc\_dg}, which adds the corrections to the free energy rate that are usually associated with non-conforming elements, is used also for conforming elements when the thickness is discretized.
@@ -405,7 +424,7 @@ We can then compare the alternative solutions to the numerical ground truth.
 
 \subsection{Static problems}
 
-The tests on static problems are fine-grained because several error-prone elements need to be correct.
+The tests on static problems are broken down in a fine-grained way because we need to get several things correct and all of them are error-prone.
 For example, our goal at this stage is to solve the Stokes problem in terrain-following coordinates where the thickness and bed topography are discretized in a finite element space.
 Suppose that the numerical solution we obtain does not map onto the corresponding solution in Cartesian coordinates.
 The variational form requires DG facet terms, even when we use conforming elements for velocity and pressure, because of the discontinuity in the matrix $J$ described above.
@@ -459,6 +478,13 @@ This test was successful on the first pass because all of the mistakes had alrea
 
 
 \subsection{Time-evolving problems}
+
+The next step is to test problems where the thickness can evolve in time and finally also the bed.
+Again, there are several respects in which we can isolate potential failure modes.
+The discontinuity in $J$ with Lagrange finite elements is a major potential failure mode.
+We can temporarily work around this problem by using $C^1$ elements for the bed elevation and thickness.
+These elements are respectively the Hermite element in 1D and Argyris or Hsieh-Clough-Tocher in 2D.
+The time-evolving solution obtained with these elements can then serve as the ground truth against which we compare the solutions obtained with Lagrange elements.
 
 
 % ----------------------
