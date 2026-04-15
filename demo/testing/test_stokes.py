@@ -19,10 +19,10 @@ def make_elements(basis):
         cg2 = firedrake.FiniteElement("CG", "quadrilateral", 2)
         cg1 = firedrake.FiniteElement("CG", "quadrilateral", 1)
         return firedrake.VectorElement(cg2), cg1
-    elif basis in ["hdiv", "bdmcf-dg"]:
+    elif basis in ["hdiv", "bdmcf-dpc"]:
         bdm1 = firedrake.FiniteElement("BDMCF", "quadrilateral", 1)
-        dg0 = firedrake.FiniteElement("DQ", "quadrilateral", 0)
-        return bdm1, dg0
+        dpc0 = firedrake.FiniteElement("DPC", "quadrilateral", 0)
+        return bdm1, dpc0
     else:
         raise ValueError("`basis` must be either `cg` or `hdiv`!")
 
