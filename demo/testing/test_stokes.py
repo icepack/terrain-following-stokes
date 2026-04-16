@@ -20,8 +20,8 @@ def make_elements(basis):
         cg1 = firedrake.FiniteElement("CG", "quadrilateral", 1)
         return firedrake.VectorElement(cg2), cg1
     elif basis in ["hdiv", "bdmcf-dpc"]:
-        bdm1 = firedrake.FiniteElement("BDMCF", "quadrilateral", 1)
-        dpc0 = firedrake.FiniteElement("DPC", "quadrilateral", 0)
+        bdm1 = firedrake.FiniteElement("BDMCF", "quadrilateral", 2)
+        dpc0 = firedrake.FiniteElement("DPC", "quadrilateral", 1)
         return bdm1, dpc0
     else:
         raise ValueError("`basis` must be either `cg` or `hdiv`!")
@@ -44,7 +44,7 @@ def solve(fn_space, bed, thickness, free_energy_rate_fn):
             "snes_type": "ksponly",
             "ksp_type": "preonly",
             "pc_type": "lu",
-            "pc_factor_mat_solver_type": "mumps",
+            "pc_factor_mat_solver_type": "superlu",
         },
     }
     firedrake.solve(F == 0, z, bcs=bcs, **params)
