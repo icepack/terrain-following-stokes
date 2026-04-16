@@ -44,7 +44,8 @@ def solve(fn_space, bed, thickness, free_energy_rate_fn):
             "snes_type": "ksponly",
             "ksp_type": "preonly",
             "pc_type": "lu",
-            "pc_factor_mat_solver_type": "superlu",
+            "pc_factor_mat_solver_type": "mumps",
+            "mat_mumps_icntl_7": 4,
         },
     }
     firedrake.solve(F == 0, z, bcs=bcs, **params)
