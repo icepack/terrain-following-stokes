@@ -27,7 +27,7 @@
 \usepackage{listings}
 \lstset{
     language=Python,
-    basicstyle=\ttfamily\small,
+    basicstyle=\ttfamily\scriptsize,
     extendedchars=true,
     breaklines=true,
     literate=
@@ -100,12 +100,17 @@ We will use the minimization form in the following because it requires fewer cha
 
 \begin{figure}
 \begin{lstlisting}
-from firedrake import inner, sym, grad, div, dx, ds, dS, avg, jump
+import firedrake
+from firedrake import inner, outer, sym, grad, div, dx, ds, dS, avg, jump
+
+
+def stress_strain_rate(u):
+    ε = sym(grad(u))
+    return ε, 2 * μ * ε
 
 
 def free_energy_rate(u, p, f):
-    ε = sym(grad(u))
-    τ = 2 * μ * ε
+    ε, τ = stress_strain_rate(u)
     return (0.5 * inner(τ, ε) - p * div(u) - inner(f, u)) * dx
 
 
@@ -114,9 +119,10 @@ def free_energy_rate_dg(u, p, f, α):
     γ = avg(firedrake.CellSize(mesh))
     dim = u.ufl_shape[0]
     I = firedrake.Identity(dim)
-
-    G_flux = -inner(avg(τ - p * I), jump(u, n)) * dS
-    G_penalty = α * μ / (2 * γ) * inner(jump(u), jump(u)) * dS
+    ε, τ = stress_strain_rate(u)
+    u_n = outer(u, n)
+    G_flux = -inner(avg(τ - p * I), u_n("+") + u_n("-")) * dS
+    G_penalty = α * μ / (2 * avg(γ)) * inner(jump(u), jump(u)) * dS
 
     return free_energy_rate(u, p, f) + G_flux + G_penalty
 \end{lstlisting}
@@ -334,19 +340,20 @@ We are not aware of any research works examining a variational form or discretiz
 
 \begin{figure}
 \begin{lstlisting}
-def free_energy_rate_tfc(u, p, f, b, h):
+def stress_strain_rate(u, b, h):
     J = coordinate_transformation_derivative(b, h)
     J_inv = coordinate_transformation_derivative_inverse(b, h)
-
-    du = dot(grad(dot(J, u)), J_inv)
+    J_u = dot(J, u)
+    du = dot(grad(J_u), J_inv)
     ε = sym(du)
-    τ = 2 * μ * ε
+    return ε, 2 * μ * ε
 
-    return (
-        0.5 * h * inner(τ, ε)
-        - p * div(h * u)
-        - h * inner(f, dot(J, u))
-    ) * dx
+
+def free_energy_rate_tfc(u, p, f, b, h):
+    J = coordinate_transformation_derivative(b, h)
+    J_u = dot(J, u)
+    ε, τ = stress_strain_rate(u, b, h)
+    return (0.5 * h * inner(τ, ε) - p * div(h * u) - h * inner(f, J_u)) * dx
 
 
 def free_energy_rate_tfc_dg(u, p, f, b, h):
@@ -355,15 +362,16 @@ def free_energy_rate_tfc_dg(u, p, f, b, h):
     n = firedrake.FacetNormal(mesh)
     γ = avg(firedrake.CellSize(mesh))
 
-    G_flux = (
-        -inner(avg(h * τ), jump(dot(J, u), dot(n, J_inv)))
-        + avg(p) * jump(h * u, n)
-    ) * dS
-    du = jump(dot(J, u))
-    G_penalty = α * μ / (2 * γ) * inner(du, du) * avg(h) * dS
+    J_u = dot(J, u)
+    ε, τ = stress_strain_rate(u, b, h)
 
-    return free_energy_rate_tfc(u, p, f, b, h) + G_flux + G_penalty
+    u_n = outer(J_u, dot(n, J_inv))
+    G_stress_flux = -inner(avg(h * τ), u_n("+") + u_n("-")) * dS
+    G_pressure_flux = avg(p) * jump(h * u, n) * dS
+    G_penalty = α * μ / (2 * avg(γ)) * inner(jump(J_u), jump(J_u)) * avg(h) * dS
 
+    G_conforming = free_energy_rate_tfc(u, p, f, b, h)
+    return G_conforming + G_stress_flux + G_pressure_flux + G_penalty
 \end{lstlisting}
 \caption{Python source code to form the free energy dissipation rate for the Stokes equations in terrain-following coordinates.}
 \label{fig:source-code-tfc}
