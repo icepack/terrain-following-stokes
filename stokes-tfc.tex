@@ -159,15 +159,16 @@ To be completely explicit, the jump of the velocity is
 \end{equation}
 where the ``$+$'' and ``$-$'' denote each side of the facet $\gamma$ that the jump is evaluated on.
 We can catch potential errors in the variational form by remembering that the DG facet fluxes should be the same if we swap which side of a facet is the ``$+$'' side and which is the ``$-$'' side.
-\textcolor{red}{\textbf{ATTN coauthors I think I implemented what's in the Cockburn (2005) paper correctly but I have not slept in 3 years please check my math.}}
 With interior penalty methods, we can use finite element bases that do not meet the continuity requirements of the Stokes equations.
 Figure \ref{fig:source-code-xyz} shows the source code for producing the free energy rate in Cartesian coordinates for both conforming and non-conforming elements.
 
-In the test cases below, we used two families of elements.
-We used the BDMCF element for the velocities and DQ for pressure on quadratic elements in 2D.
-\textcolor{red}{\textbf{ATTN coauthors, need help here.
-I can get this to work for BDMCF${}_1$ $\times$ DQ${}_0$ but not higher order.
-I can also get it to work with (DQ${}_{k + 1}$)${}^2$ $\times$ DQ${}_k$ for higher $k$ but that's completely non-conforming and I'd rather have H(div)-conforming.}}
+In the test cases below, we used two families of elements, both on quadrilaterals in 2D.
+To obtain the conforming, ground truth solution, we used Taylor-Hood elements.
+We then used a non-conforming discretization where the velocity is in $H(\text{div})$.
+Here we choose the Brezzi-Douglas-Marini element of degreee $k + 1$ for the velocity and discontinuous polynomials of total degree $k$ for the pressure.
+In Firedrake or UFL parlance, these elements are respectively \texttt{BDMCF} and \texttt{DPC}.
+Alternatively, we could have chosen Raviart-Thomas elements of degree $k + 1$ for the velocity and discontinuous tensor product polynomials of degree $k$ in each direction (\texttt{RTCF} and \texttt{DQ} respectively) but the Brezzi-Douglas-Marini space is slightly smaller for the same order of accuracy.
+\textcolor{red}{Check if BDM handles anisotropy better than RT}.
 
 We can also consider a formulation of the Stokes problem where the stress tensor is an additional unknown.
 Although more expensive, this form will be indispensible for simulating non-Newtonian fluid flows.
@@ -403,7 +404,6 @@ These elements not fully discontinuous; instead, they have continuous normal com
 This property guarantees that the divergence of the discrete velocity space is a subspace of the pressure space.
 It is a good question to ask whether we can preserve this property in a general curvilinear coordinate system, where the divergence operator picks up a factor of the determinant of $J$.
 In our case, since we use continuous finite elements for $h$, and $h$ depends only on the horizontal coordinates and not the vertical coordinate, an $H(\text{div})$-conforming element for the velocity still retains all of its desirable properties even with a different divergence operator.
-\textcolor{red}{\textbf{But see previous note on BDMCF at higher degree.}}
 
 The source code to produce the free energy rate for the Stokes equations in terrain-following coordinates with both conforming and non-conforming elements is shown in Figure \ref{fig:source-code-tfc}.
 The function \texttt{free\_energy\_rate\_tfc\_dg}, which adds the corrections to the free energy rate that are usually associated with non-conforming elements, is used also for conforming elements when the thickness is discretized.
