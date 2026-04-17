@@ -11,6 +11,7 @@
 \usepackage{color}
 \usepackage[charter]{mathdesign}
 \usepackage[pdftex]{graphicx}
+\usepackage{csquotes}
 %\usepackage{float}
 %\usepackage{hyperref}
 %\usepackage[modulo, displaymath, mathlines]{lineno}
@@ -96,7 +97,7 @@ The incompressible Stokes equations can be derived through minimization of the f
     G(u, p) = \int_\Omega\left\{\frac{1}{2}\tau :\dot\varepsilon - p\nabla\cdot u - f\cdot u\right\}\mathrm dx
 \end{equation}
 where $\dot\varepsilon = \frac{1}{2}(\nabla u + \nabla u^*)$ is the rate of strain tensor and $\tau = 2\mu\dot\varepsilon$ is the deviatoric stress tensor.
-We will use the minimization form in the following because it requires fewer characters to type and because I like it.
+We will use the minimization form in the following because it requires fewer characters to type.
 
 \begin{figure}
 \begin{lstlisting}
@@ -161,6 +162,14 @@ where the ``$+$'' and ``$-$'' denote each side of the facet $\gamma$ that the ju
 We can catch potential errors in the variational form by remembering that the DG facet fluxes should be the same if we swap which side of a facet is the ``$+$'' side and which is the ``$-$'' side.
 With interior penalty methods, we can use finite element bases that do not meet the continuity requirements of the Stokes equations.
 Figure \ref{fig:source-code-xyz} shows the source code for producing the free energy rate in Cartesian coordinates for both conforming and non-conforming elements.
+The same discretization can be derived from a conservation law using the local discontinuous Galerkin method \citep{cockburn2002local}.
+
+The interior penalty method makes it possible to use completely discontinuous elements for the velocity.
+It is also possible to use elements that are intermediate between continuous and discontinuous.
+An \emph{$H(\text{div})$-conforming} element has continuous normal components across mesh facets but has no constraints on continuity tangential to mesh facets \citep{boffi2013mixed}.
+The interior penalty method then recovers continuity in the tangential direction in the limit as the mesh is refined.
+The advantage of this intermediate continuity is that it implies that the divergence operator exactly maps the velocity space into the pressure space.
+We are then assured that mass is conserved exactly and not approximately \citep{cockburn2007note}.
 
 In the test cases below, we used two families of elements, both on quadrilaterals in 2D.
 To obtain the conforming, ground truth solution, we used Taylor-Hood elements.
@@ -191,14 +200,14 @@ For the most part, it is more common to use a fixed than a moving reference fram
 The simplest explanation for this preference is that, for many interesting fluid flows, an initially circular representative volume element can deform into one with a much larger surface-to-volume ratio.
 For many problems, the system is open and so using a material-following coordinate system introduces additional complications at the inflow and outflow boundaries.
 
-For free surface flows, the most common choice is to use \textbf{a reference frame that is fixed in the horizontal but moving in the vertical}.
-This assumption is almost universal but rarely stated outright.
-There are then two choices in how to discretize the problem.
-First, one can use a Cartesian coordinate system and a mesh that moves up and down in the vertical with the fluid flow.
-This is the approach used in e.g. the ice-flow modeling package Elmer/ICE \textcolor{red}{check this, get a reference}.
-Second, one can use a fixed computational mesh and a moving coordinate system.
-This terrain-following approach is used in the ice-flow modeling package SICOPOLIS \textcolor{red}{again check details and get a ref}.
-Here we will pursue the second approach of using a moving coordinate system.
+For free surface flows, the geometry is changing in time and there are choices the modeler has to make about how to capture this effect.
+One possibility is to use a fixed coordinate system and a moving mesh.
+The ice-flow modeling pacakge Elmer/ICE uses a Cartesian coordinate system and advects the mesh with the flow using an arbitrary Lagrangian-Eulerian scheme \citep{gagliardini2013capabilities}.
+Alternatively, one can use a fixed mesh and a moving coordinate system.
+The package SICOPOLIS uses terrain-following coordinates, described in \S5.7 of \citet{greve2009dynamics} and below.
+Finally, one can use a completely fixed mesh and coordinate system and use interface-tracking techniques such as the level-set method \citep{hossain2020modelling}.
+\textcolor{red}{Check ISSM, PISM, BISICLES if we want to be exhaustive}.
+Here we will pursue the approach of using a coordinate system that is fixed in the horizontal but moving in the vertical.
 
 
 \subsection{Transforming vectors and gradients}
@@ -331,8 +340,9 @@ We need to (for example) take products of the strain rate tensor with itself in 
 
 We have instead avoided metrics, Christoffel symbols, or Riemannian geometry.
 It's possible to approach the problem this way because we start with an explicit isometry into Euclidean space.
-Several other works in the research literature have derived the Navier-Stokes equations in time-dependent curvilinear coordinates without Christoffel symbols for either or both of the reasons we described above.
-\citet{yang1994general} derived a strong form and \citet{cannata2019numerical} a conservation form, both for discretization with the finite volume method.
+A handful of other works in the research literature have derived the Navier-Stokes equations in time-dependent curvilinear coordinates without Christoffel symbols for either or both of the reasons we described above.
+\citet{warsi1981conservation} derived both conservation and differential forms of the Navier-Stokes equations in curvilinear coordinates in a way that avoids Christoffel symbols.
+\citet{yang1994general} built on this to simulate fluid flow in curved geometries using the finite volume method.
 We are not aware of any research works examining a variational form or discretization via finite elements.
 
 
@@ -501,6 +511,45 @@ The time-evolving solution obtained with these elements can then serve as the gr
 Helicoidal flow in an open channel
 
 Ice stream flow across a grounding line
+
+
+% ------------------
+\section{Discussion}
+
+We presented an approach to formulating the Stokes equations in terrain-following coordinates and discretized the problem with the discontinuous Galerkin finite element method.
+Several previous works have used terrain-following coordinates for ice flow modeling.
+\citet{kleiner2014numerical} is the closest in spirit to this work.
+They used a higher-order ice flow model with a transformed coordinate system but discretized the problem using the finite difference method.
+\citet{greve2009dynamics} describe the the implementation of the ice-flow model SICOPOLIS, which also uses a finite difference discretization in terrain-following coordinates but focuses more on the shallow ice approximation.
+Our approach differs from both of these in a few respects.
+
+First, we elected to work with the contravariant components of the velocity vector in the curvilinear coordinate system rather than the Cartesian velocities.
+\citet{greve2009dynamics} state in \S5.7.2:
+\begin{displayquote}
+    Note that, while applying the sigma transformation, we have not attempted to write the velocity vector $\mathbf v$ in components of the curvilinear, transformed coordinates.
+    Instead, the Cartesian components $u = v_x$ and $w = v_z$ are treated like scalar fields which are not affected by the transformation.
+    This is common practise in connection with the sigma transformation; otherwise, the transformed equations would become very complicated due to the non-orthogonality of the transformed coordinates.
+\end{displayquote}
+The transformed equations that we use do have extra factors of $J$.
+We had to use special techniques in order to discretize the problem because of these extra terms.
+We argue that working directly with the contravariant components of the velocity in the non-orthogonal coordinate system has advantages.
+The main advantage is in prescribing the top and bottom boundary conditions.
+The Cartesian vertical component of the ice velocity at the surface or bed of a glacier does not completely prescribe the mass balance rate.
+Instead, we need to also know the surface and bed slope and the other components of the velocity vector.
+In contravariant terrain-following coordinates, however, the vertical component of the velocity times the thickness is exactly equal to the mass balance rate.
+Moreover, the horizontal contravariant components of the velocity are exactly equal to the sliding velocity and can thus be used directly to implement the sliding boundary condition.
+Implementing sliding boundary conditions in Cartesian coordinates involves additional work.
+For example, the Elmer/ICE package uses an ad hoc procedure to define the unit outward normal vector at the mesh vertices \citep{gagliardini2013capabilities}.
+Alternatively, one could use Nitsche's method.
+Implementing boundary conditions correctly is one of the most common sources of error in numerical discretization of differential equations.
+We argue that using the contravariant components of the velocity more directly corresponds with physical intuition about the vertical velocity and makes errors in the boundary conditions less likely.
+
+Second, where both \citet{greve2009dynamics} and \citet{kleiner2014numerical} use a finite difference discretization, we used a discontinuous Galerkin finite element method.
+Implementing the finite element method from scratch is arguably more involved than the finite difference method.
+New software tools such as Firedrake and UFL significantly reduce the gap in complexity.
+The modeler only has to correctly prescribe a variational form rather than write low-level computational kernels for finite element assembly.
+The use of $H(\text{div})$-conforming elements for the ice velocity make it possible to exactly conserve mass, which is more difficult to attain with finite difference methods.
+
 
 \pagebreak
 
