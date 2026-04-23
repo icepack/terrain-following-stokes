@@ -1,0 +1,11 @@
+[project]
+name = "zetastokes"
+version = "0.0.1"
+description = "Stokes flow in terrain-following coordinates"
+authors = [
+    {name = "Daniel Shapero", email = "shapero@uw.edu"}
+]
+
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"

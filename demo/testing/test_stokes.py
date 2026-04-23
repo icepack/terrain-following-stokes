@@ -4,7 +4,7 @@ import numpy as np
 import ufl
 import firedrake
 from firedrake import Constant, dot
-import stokes
+import zetastokes
 import topography
 
 
@@ -84,20 +84,20 @@ def solve_sequence(
 def get_free_energy_rate_function(coordinates, basis, topo_degree):
     match (coordinates, basis, topo_degree):
         case ("xyz", "cg", _):
-            return stokes.free_energy_rate_cartesian
+            return zetastokes.cartesian.cell_free_energy_rate
         case ("xyz", "hdiv", _):
-            return stokes.free_energy_rate_cartesian_dg
+            return zetastokes.cartesian.free_energy_rate
         case ("tfc", "cg", "inf"):
-            return stokes.free_energy_rate_terrain_following
+            return zetastokes.terrain_following.cell_free_energy_rate
         case ("tfc", "cg", _):
-            return stokes.free_energy_rate_terrain_following_dg
+            return zetastokes.terrain_following.free_energy_rate
         case ("tfc", "hdiv", _):
-            return stokes.free_energy_rate_terrain_following_dg
+            return zetastokes.terrain_following.free_energy_rate
 
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--filename")
-args=  parser.parse_args()
+args = parser.parse_args()
 
 configs = [
     ("xyz", "cg", "inf"),

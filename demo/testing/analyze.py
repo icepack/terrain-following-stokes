@@ -4,12 +4,12 @@ import matplotlib.pyplot as plt
 import ufl
 import firedrake
 from firedrake import norm, Constant, dot
-import stokes
+from zetastokes.terrain_following import coordinate_transformation_derivatives
 import topography
 
 
 def terrain_following_to_cartesian(mesh_xyz, u, p, b, h):
-    J = stokes.coordinate_transformation_derivative(b, h)
+    J, J_inv = coordinate_transformation_derivatives(b, h)
     # TODO: Check if this should really be `project` or possibly also
     # interpolate into a DG space.
     Ju = firedrake.Function(u.function_space()).interpolate(dot(J, u))
