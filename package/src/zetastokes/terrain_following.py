@@ -1,8 +1,8 @@
 import firedrake
 from firedrake import (
-    Constant, inner, outer, dot, sym, grad, div, dx, avg, jump, dS_h, dS_v,
-    ds_b, ds_t, ds_v,
+    Constant, inner, outer, dot, sym, grad, div, dx, avg, jump, dS_h, dS_v
 )
+from .common import boundary_measure
 import ufl
 
 
@@ -50,16 +50,6 @@ def cell_free_energy_rate(**kwargs):
     return (0.5 * h * inner(τ, ε) - p * div(h * u) - h * inner(f, dot(J, u))) * dx
 
 
-def boundary_measure(ids):
-    numeric_ids = tuple(set(ids) - {"bottom", "top"})
-    ds = ds_v(numeric_ids)
-    if "bottom" in ids:
-        ds += ds_b
-    if "top" in ids:
-        ds += ds_t
-    return ds
-
-
 def facet_free_energy_rate(**kwargs):
     u, p, ε, τ, _, h, J, J_inv, n, mesh = _get_fields(**kwargs)
 
@@ -67,19 +57,26 @@ def facet_free_energy_rate(**kwargs):
     μ = Constant(kwargs["viscosity"])
     γ = firedrake.CellSize(mesh)
 
-    u_n = outer(dot(J, u), dot(n, J_inv))
+    ν = dot(n, J_inv)
+    u_n = outer(dot(J, u), ν)
     δu_n = u_n("+") + u_n("-")
     δu = jump(dot(J, u))
 
     dS = dS_h + dS_v
-    fpower = (-inner(avg(h * τ), δu_n) + avg(p) * jump(h * u, n)) * dS
-    fpenalty = α * μ / (2 * avg(γ)) * inner(δu, δu) * avg(h) * dS
+    power = (-inner(avg(h * τ), δu_n) + avg(p) * jump(h * u, n)) * dS
+    penalty = α * μ / (2 * avg(γ)) * inner(δu, δu) * avg(h) * dS
 
-    ds = boundary_measure(kwargs["dirichlet_ids"])
-    bpower = (-inner(τ, u_n) + p * inner(u, n)) * h * ds
-    bpenalty = α * μ / (2 * γ) * inner(dot(J, u), dot(J, u)) * h * ds
+    if "dirichlet_ids" in kwargs:
+        ds = boundary_measure(kwargs["dirichlet_ids"])
+        power += (-inner(τ, u_n) + p * inner(u, n)) * h * ds
+        penalty += α * μ / (2 * γ) * inner(dot(J, u), dot(J, u)) * h * ds
 
-    return fpower + fpenalty + bpower + bpenalty
+    if "robin_ids" in kwargs:
+        ds = boundary_measure(kwargs["robin_ids"])
+        power += (-inner(τ, outer(ν, ν)) + p) * inner(u, n) * h * ds
+        penalty += α * μ / (2 * γ) * inner(u, n)**2 * h * ds
+
+    return power + penalty
 
 
 def free_energy_rate(**kwargs):

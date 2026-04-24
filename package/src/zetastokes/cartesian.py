@@ -1,9 +1,9 @@
 import firedrake
 from firedrake import (
     Constant, inner, outer, sym, grad, div, dx, avg, jump, dS_h, dS_v,
-    ds_b, ds_t, ds_v
 )
 import ufl
+from .common import boundary_measure
 
 
 def _get_fields(**kwargs):
@@ -29,16 +29,6 @@ def cell_free_energy_rate(**kwargs):
     return (0.5 * inner(τ, ε) - p * div(u) - inner(f, u)) * dx
 
 
-def boundary_measure(ids):
-    numeric_ids = tuple(set(ids) - {"bottom", "top"})
-    ds = ds_v(numeric_ids)
-    if "bottom" in ids:
-        ds += ds_b
-    if "top" in ids:
-        ds += ds_t
-    return ds
-
-
 def facet_free_energy_rate(**kwargs):
     u, p, _, τ, n, mesh = _get_fields(**kwargs)
 
@@ -49,13 +39,20 @@ def facet_free_energy_rate(**kwargs):
     u_n = sym(outer(u, n))
 
     dS = dS_h + dS_v
-    fpower = (-inner(avg(τ), u_n("+") + u_n("-")) + avg(p) * jump(u, n)) * dS
-    fpenalty = α * μ / (2 * avg(γ)) * inner(jump(u), jump(u)) * dS
+    power = (-inner(avg(τ), u_n("+") + u_n("-")) + avg(p) * jump(u, n)) * dS
+    penalty = α * μ / (2 * avg(γ)) * inner(jump(u), jump(u)) * dS
 
-    ds = boundary_measure(kwargs["dirichlet_ids"])
-    bpower = (-inner(τ, u_n) + p * inner(u, n)) * ds
-    bpenalty = α * μ / (2 * γ) * inner(u, u) * ds
-    return fpower + fpenalty + bpower + bpenalty
+    if "dirichlet_ids" in kwargs:
+        ds_dirichlet = boundary_measure(kwargs["dirichlet_ids"])
+        power += (-inner(τ, u_n) + p * inner(u, n)) * ds_dirichlet
+        penalty += α * μ / (2 * γ) * inner(u, u) * ds_dirichlet
+
+    if "robin_ids" in kwargs:
+        ds_robin = boundary_measure(kwargs["robin_ids"])
+        power += (-inner(τ, outer(n, n)) + p) * inner(u, n) * ds_robin
+        penalty += α * μ / (2 * γ) * inner(u, n)**2 * ds_robin
+
+    return power + penalty
 
 
 def free_energy_rate(**kwargs):
