@@ -32,8 +32,11 @@ def _get_fields(**kwargs):
     grad_u = dot(grad(dot(J, u)), J_inv)
     ε = sym(grad_u)
 
-    μ = Constant(kwargs["viscosity"])
-    τ = 2 * μ * ε
+    if kwargs.get("form", "primal") == "primal":
+        μ = Constant(kwargs["viscosity"])
+        τ = 2 * μ * ε
+    else:
+        τ = kwargs["stress"]
 
     mesh = ufl.domain.extract_unique_domain(u)
     n = firedrake.FacetNormal(mesh)
@@ -46,8 +49,13 @@ def cell_free_energy_rate(**kwargs):
 
     g = kwargs["gravity"]
     f = Constant((0,) * (mesh.geometric_dimension - 1) + (-g,))
+    G = (p * div(h * u) + h * inner(f, dot(J, u))) * dx
 
-    return (0.5 * h * inner(τ, ε) - p * div(h * u) - h * inner(f, dot(J, u))) * dx
+    if kwargs.get("form", "primal") == "primal":
+        return 0.5 * h * inner(τ, ε) * dx - G
+
+    μ = kwargs["viscosity"]
+    return (h * inner(τ, τ) / (4 * μ) - h * inner(τ, ε)) * dx + G
 
 
 def facet_free_energy_rate(**kwargs):
@@ -80,4 +88,8 @@ def facet_free_energy_rate(**kwargs):
 
 
 def free_energy_rate(**kwargs):
-    return cell_free_energy_rate(**kwargs) + facet_free_energy_rate(**kwargs)
+    G_cells = cell_free_energy_rate(**kwargs)
+    G_facets = facet_free_energy_rate(**kwargs)
+    if kwargs.get("form", "primal") == "primal":
+        return G_cells + G_facets
+    return G_cells - G_facets
