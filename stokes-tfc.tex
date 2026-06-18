@@ -486,9 +486,10 @@ This matrix $J$ appears under a spatial derivative in the expression in equation
 Even if we use Taylor-Hood or MINI elements for the velocity and pressure, we need to include the facet integrals that are normally used only for non-conforming methods in order to correctly discretize the problem when $b$ and $h$ are discretized.
 
 This stage of testing has the same error modes as implementing a non-conforming discretization with an exact geometry.
-\textcolor{red}{\textbf{I found that the solutions converge only when the bed elevation and fluid thickness are discretized in the space $CG^2$ of piecewise-quadratic functions, and did not converge using $CG^1$ elements.}
-It's not clear at this juncture if this is a fundamental limitation and we really cannot use $CG^1$ elements, or if there is a bug in the code and we should be able to use $CG^1$ elements.
-\textbf{ATTN all coauthors this is what I need help with.}}
+Discretizing $h$ introduces an additional failure mode not in the specification of the Stokes problem itself but in how to compare a solution in terrain-following coordinates with one in Cartesian coordinates.
+The conversion between the two requires multiplication by the matrix $J$, but this matrix now lives in a DG space.
+A naive implementation would take the converted velocity to use the same polynomial degree as the original terrain-following velocity.
+This solution will compare poorly with the Cartesian solution, not because it was wrong but because the degree needs to be the original degree \emph{plus} the degree of the thickness space.
 
 \paragraph{Non-conforming discretization in discrete terrain-following coordinates.}
 This is the final stage before testing time-dependent problems and includes all of the features we desire for our discretization of the momentum balance equation.
