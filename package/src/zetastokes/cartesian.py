@@ -46,6 +46,7 @@ def facet_free_energy_rate(**kwargs):
     u_n = sym(outer(u, n))
 
     dS = dS_h + dS_v
+    # TODO: Try alternative forms for this
     power = (-inner(avg(τ), u_n("+") + u_n("-")) + avg(p) * jump(u, n)) * dS
     penalty = α * μ / (2 * avg(γ)) * inner(jump(u), jump(u)) * dS
 
