@@ -2,13 +2,14 @@ import firedrake
 from firedrake import (
     Constant, inner, outer, dot, sym, grad, div, dx, avg, jump, dS_h, dS_v
 )
-from .common import boundary_measure
-import ufl
+from irksome import Dt
+from .common import boundary_measure, get_test_function
+from ufl.domain import extract_unique_domain
 
 
 
 def coordinate_transformation_derivatives(b, h):
-    mesh = ufl.domain.extract_unique_domain(b)
+    mesh = extract_unique_domain(b) or extract_unique_domain(h)
     d = mesh.geometric_dimension
     ζ = firedrake.SpatialCoordinate(mesh)[d - 1]
     σ = grad(b) + ζ * grad(h)
@@ -38,7 +39,7 @@ def _get_fields(**kwargs):
     else:
         τ = kwargs["stress"]
 
-    mesh = ufl.domain.extract_unique_domain(u)
+    mesh = extract_unique_domain(u)
     n = firedrake.FacetNormal(mesh)
 
     return u, p, ε, τ, b, h, J, J_inv, n, mesh
@@ -94,3 +95,16 @@ def free_energy_rate(**kwargs):
     if kwargs.get("form", "primal") == "primal":
         return G_cells + G_facets
     return G_cells - G_facets
+
+
+def mass_balance(**kwargs):
+    h = kwargs["thickness"]
+    u = kwargs["velocity"]
+    mesh = extract_unique_domain(h)
+    n = firedrake.FacetNormal(mesh)
+    φ = get_test_function(h)
+    F_cells = (Dt(h) * φ - inner(h * u, grad(φ))) * dx
+    u_n = firedrake.max_value(0, inner(u, n))
+    ds = boundary_measure([1, 2])
+    F_outflow = h * u_n * φ * ds
+    return F_cells + F_outflow
