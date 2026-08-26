@@ -509,9 +509,25 @@ The time-evolving solution obtained with these elements can then serve as the gr
 % ----------------------
 \section{Demonstrations}
 
-Helicoidal flow in an open channel
+Here we provide demonstrations beyond the unit tests described above.
 
-Ice stream flow across a grounding line
+\subsection{Relaxation of sinusoidal surface}
+
+As a ``smoke test'', we consider relaxation of a sinusoidal surface based on the first test case from \citet{ahlkrona2026fully}.
+We used a no-slip condition on the bottom of the domain, free-slip conditions on the side walls, and no stress on the surface.
+The parameters for the simulation are described in \textcolor{red}{Table X}.
+For the numerical scheme, we use DQ${}_2$ elements for the velocity, DQ${}_1$ elements for the pressure, and CG${}_1$ elements for the thickness.
+We used a backward Euler timestepping scheme and solve the coupled mass and momentum balance equations all at once.
+
+The simulations converge with all timesteps up to the maximum duration.
+
+\subsection{Perlin glacier}
+
+For a more involved test case, we use a simplification of the ``Perlin glacier'' problem from \citet{ahlkrona2026fully}.
+Our focus here is on the use of terrain-following coordinates and discontinuous Galerkin methods, so instead of using the Glen flow law, we use a linear viscous rheology.
+The sliding law is the same.
+As a more involved test case, we generate a random bed topography and spin up the model for 400 years.
+We use again DQ${}_2$ elements for velocity, DQ${}_1$ elements for pressure, and CG${}_1$ elements for thickness.
 
 
 % ------------------
