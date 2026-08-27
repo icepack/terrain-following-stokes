@@ -1,12 +1,12 @@
 digraph testsuite {
     rankdir=LR;
     ground_truth [label="XYZ\nu: CG²\np: CG¹"];
-    xyz_dg [label="XYZ\nu: BDM\np: DG"];
+    xyz_dg [label="XYZ\nu: DQ²\np: DQ¹"];
     tfc_cg [label="TFC\nu: CG²\np: CG¹\nh: ∞"];
-    tfc_dg [label="TFC\nu: BDM\np: DG\nh: ∞"];
+    tfc_dg [label="TFC\nu: DQ²\np: DQ¹\nh: ∞"];
     tfc_discrete_h [label="TFC\nu: CG²\np: CG¹\nh: CG¹"];
-    tfc_dg_discrete_h [label="TFC\nu: BDM\np: DG\nh: CG¹"];
-    xyz_vps [label="XYZ\nu: CG²\np: CG¹\nτ: DG¹"]
+    tfc_dg_discrete_h [label="TFC\nu: DQ²\np: DQ¹\nh: CG¹"];
+    xyz_vps [label="XYZ\nu: CG²\np: CG¹\nτ: DQ¹"]
 
 
     dg_correct [shape=none, label="Is DG\ncorrect?"];

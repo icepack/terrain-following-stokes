@@ -68,26 +68,95 @@
 
 \maketitle
 
+\abstract{This paper describes how to simulate viscous thin-film fluid flows by using a combination of terrain-following coordinates and discontinuous Galerkin discretization.
+Terrain-following coordinates were originally developed for simulating the flows of the atmosphere and ocean over variable topography.
+For these problems, viscosity is negligible, so the equations of motion contain only first-order derivatives in space and time.
+Here we are interested in free-surface fluid flows in the earth sciences where viscous effects are dominant.
+These problems include the flow of glaciers, lava, or the earth's mantle.
+The equations of motion for these problems contain second-order derivatives.
+Transforming these terms to the new coordinate system is more complex.
+In particular, the warping factor from terrain-following to Cartesian coordinates depends on the slope of the surface and bed.
+When the topography has been discretized in a finite element space, these slopes jump across cell boundaries.
+This discontinuity appears at first to make it impossible to discretize the problem.
+Our main contribution is to show how this challenge can be overcome using discontinuous Galerkin methods.}
+
+
 % --------------------
 \section{Introduction}
 
-Here we describe discretization schemes for viscous free-surface fluid flows.
-In atmospheric science and oceanography, using terrain-following coordinates is a common approach for handling variable surface and bottom topography.
-For these problems, viscous dissipation is negligible except in a very thin boundary layer.
-As a consequence, the equations of motion contain only first-order derivatives in space and time.
-Here we are interested in other free-surface fluid flows in the earth sciences, such as the flow of glaciers or lava.
-For these types of flows, viscous effects are dominant and the inertial terms are negligble.
-The equations of motion contain second-order derivatives.
-This makes it much harder to apply terrain-following coordinates because the metric terms are discontinuous and live inside a derivative.
-Here we show how to work around this difficulty using discontinuous Galerkin methods.
+Our goal in this paper is to describe techniques for simulating the flow of thin fluid films over variable topography at low Reynolds number with applications to glaciology and geodynamics.
+When the surface of the fluid is free to move up and down, the geometry of the problem is changing in time.
+This feature introduces additional difficulties that are not present when doing computational fluid dynamics in a fixed geometry.
+In atmospheric science and oceanography, a common remedy for this problem is to use \emph{terrain-following coordinates} \citep{gal1975use}.
+This coordinate system uses a non-dimensional vertical coordinate $\zeta$ which takes values between 0 and 1.
+We can then compute the physical elevation in Cartesian coordinates as
+\begin{equation}
+    z = b(x, y) + \zeta \cdot h(x, y, t)
+\end{equation}
+where $b$ and $h$ are the bottom topography and fluid thickness.
+We assume that the fluid film thickness can change in time but that the bottom topography is fixed.
+When using Cartesian coordinates, the computational grid has to be deformed to the surface and bottom topography.
+\textcolor{red}{Illustration}.
+This results in more complicated formulas to discretize a conservation law.
+The tradeoff in using terrain-following coordinates is that the computational grid is regular, but now there are warping terms that have to go into the equations of motion.
 
-Using interior penalty discontinuous Galerkin methods requires setting certain penalty parameters.
-Many papers in the research literature assume that this constant is big enough without deriving how big that is.
-An essential tool for us will be the explicit estimates for constants in the finite element trace inverse inequality of \citet{warburton2003constants}.
-This will let us set the constants explicitly in terms of the mesh regularity.
+A running theme throughout the following will be what we mean by ``velocity''.
+The velocity is the rate of change of the position of a particle that is moving with the fluid.
+How we represent that position, and thus the velocity, depends on the coordinate system.
+For example, suppose we follow a material parcel at the bottom of a fluid film.
+We assume that the fluid is not in perfect contact with its bed, so it can slip but it cannot penetrate through the bed.
+This assumption means that the velocity vector is always parallel to the bed.
+In Cartesian coordinates, the vertical component of the velocity will be positive when the particle is flowing uphill and negative when the particle is flowing downhill.
+But in the vertical component of the velocity will always be zero in terrain-following coordinates.
 
-We assume that the fluid flow takes place over a variable topography with elevation $b$.
-The fluid surface is at height $s$ and the film thickness is $h = s - b$.
+Now there is a choice to make: do we solve for the Cartesian components of the velocity vector, or do we solve for the intrinsic, contravariant components of the velocity vector in the transformed coordinate system?
+In this work, we will always solve for the intrinsic, contravariant components of the velocity vector in terrain-following coordinates.
+We argue that this has certain conceptual advantages.
+But we emphasize that the representation is a modeling choice.
+
+The theory of general curvilinear coordinate systems and Riemannian geometry provides useful tools here.
+The seminal paper of \citet{gal1975use} adopts this approach.
+This viewpoint replaces the Euclidean inner product with a metric tensor $g_{ij}(x)$.
+The metric tensor tells us how to calculate inner products between direction vectors at the point $x$.
+The metric tensor has to be symmetric and positive definite and, unlike the Euclidean inner product, varies in space.
+We can then compute the Christoffel (``Christ-awful'') symbols for this metric, which allows us to derive expressions for the gradient, divergence, and curl.
+
+There is a major problem with this approach if we want to use certain numerical methods.
+The metric tensor depends on the slope of the bed and surface.
+But our goal was to describe fluid films with a free surface.
+The free surface evolution law is a hyperbolic partial differential equation.
+Suppose that we discretize this equation using continuous piecewise-polynomial basis functions.
+Then the slope field jumps at cell boundaries, and as a consequence the metric tensor does too.
+Now the gradient and divergence operators in curvilinear coordinates involve the Christoffel symbols for the metric.
+The Christoffel symbols are defined as certain derivatives of the metric tensor.
+The metric tensor is not even continuous, much less differentiable.
+Using terrain-following coordinates and finite elements might then appear doomed.
+
+The alternative approach that we adopt here is to use a curvilinear coordinate system while avoiding Riemannian geometry.
+Instead of working with the metric tensor and the Christoffel symbols, we rely on the linearization $J$ of the map from terrain-following to Cartesian coordinates and its inverse.
+The matrix $J$ is also discontinuous across cell boundaries, and it appears under a gradient operator.
+At first blush, it might seem that this approach too is doomed to fail for the same reason as using Riemannian geometry.
+In this case, however, we can salvage the wreck using discontinuous Galerkin methods.
+
+The orthodox approach to simulating free-surface fluid flow in both glaciology and geodynamics is to use a Cartesian coordinate system and a moving mesh.
+It is common to use operator-splitting or semi-implicitization schemes to separate the evolution of the free surface from the solution of the momentum balance equation \citep{gagliardini2013capabilities, rose2017stability}.
+Operator-splitting schemes can require small timesteps in order to avoid the ``drunken sailor'' instability.
+How to stabilize the numerical scheme is an active area of research \citep{ahlkrona2026fully}.
+
+\paragraph{Contribution.}
+Terrain-following coordinates are pervasive in the literature on atmospheric science and oceanography \citep{gal1975use}.
+Several papers have examined how to rewrite the Navier-Stokes equations in curvilinear coordinate systems using Riemannian geometry \citep{luo2004contravariant}.
+A handful of papers in aeronautical engineering have gone so far as to express the Navier-Stokes equations in curvilinear coordinate systems using only the linearization map $J$ instead of a metric tensor \citep{warsi1981conservation, yang1994general}.
+\citet{cannata2019numerical} used these techniques to discretize the equations of free surface fluid flow, but they used a finite volume and not a finite element discretization.
+\citet{greve2009dynamics} use terrain-following coordinates for glacier flow, but their approach differs from ours in two ways.
+First, they do not use the Stokes equations but rather a perturbative simplification based on the smallness of the domain aspect ratio.
+Second, they work with the Cartesian components of the velocity vector rather than the contravariant components in the transformed coordinate system.
+
+Our contribution is to show how to discretize thin-film flow at low Reynolds number using discontinuous Galerkin methods.
+This is summed up in its entirety in equation \eqref{eq:sipdg-stokes-tfc}, which is the most important part of the paper.
+To our knowledge, this has not appeared in the glaciology or geodynamics literature before.
+An important consequence is that we can solve the coupled mass and momentum balance equations all at once without recourse to operator splitting.
+
 
 % -----------------------------------
 \section{DG discretization of Stokes}
@@ -137,8 +206,8 @@ First, we can prescribe the boundary traction by adding a term to the free energ
 \begin{equation}
     \ldots - \int_\Gamma \tau_\Gamma : n\otimes u\,\mathrm d\gamma.
 \end{equation}
-We might instead want to fix the value of the velocity.
-The conventional approach is to modify the linear system at the time of solution to enforce this Dirichlet condition.
+We might instead want to fix the value of the velocity to some externally-imposed $u_\Gamma$.
+The conventional approach for fixing boundary values is to modify the linear system at the time of solution.
 
 Nitsche's method is a way to instead enforce Dirichlet conditions by modifying the variational form.
 One way of looking at Nitsche's method is as an augmented Lagrangian scheme together with an exact solution for the Lagrange multipliers.
@@ -148,7 +217,8 @@ The Nitsche functional is
 \end{equation}
 Here $\ell$ is a measure of the local facet diameter and $\alpha$ is a constant related to the mesh regularity.
 
-The symmetric interior penalty discontinuous Galerkin method is what happens when we apply Nitsche's method to every cell $\omega$ of the mesh:
+In the following, we will use the \emph{symmetric interior penalty discontinuous Galerkin} (SIPDG) method.
+This method is what we get when we apply Nitsche's method to every cell $\omega$ of the mesh:
 \begin{align}
     & G_\alpha(u, p) = \sum_\omega\int_\omega\left\{\frac{1}{2}\tau:\dot\varepsilon - p\nabla\cdot u - f\cdot u\right\}\mathrm dx \nonumber \\
     & \qquad - \sum_\gamma\int_\gamma \left\langle\tau - pI \right\rangle: [u\otimes n]\,\mathrm d\gamma + \sum_\gamma\int_\gamma\frac{\alpha\mu}{2|\gamma|}|[u]|^2\mathrm d\gamma \label{eq:sipdg-stokes-xyz}
@@ -159,25 +229,16 @@ To be completely explicit, the jump of the velocity is
     [u\otimes n] = u_+\otimes n_+ + u_-\otimes n_-
 \end{equation}
 where the ``$+$'' and ``$-$'' denote each side of the facet $\gamma$ that the jump is evaluated on.
+With DG methods, we can use finite element bases that do not meet the continuity requirements of the problem.
+This feature is sometimes an advantage.
+Continuity and differentiability are recovered in the limit as the mesh is refined.
 We can catch potential errors in the variational form by remembering that the DG facet fluxes should be the same if we swap which side of a facet is the ``$+$'' side and which is the ``$-$'' side.
-With interior penalty methods, we can use finite element bases that do not meet the continuity requirements of the Stokes equations.
 Figure \ref{fig:source-code-xyz} shows the source code for producing the free energy rate in Cartesian coordinates for both conforming and non-conforming elements.
-The same discretization can be derived from a conservation law using the local discontinuous Galerkin method \citep{cockburn2002local}.
-
-The interior penalty method makes it possible to use completely discontinuous elements for the velocity.
-It is also possible to use elements that are intermediate between continuous and discontinuous.
-An \emph{$H(\text{div})$-conforming} element has continuous normal components across mesh facets but has no constraints on continuity tangential to mesh facets \citep{boffi2013mixed}.
-The interior penalty method then recovers continuity in the tangential direction in the limit as the mesh is refined.
-The advantage of this intermediate continuity is that it implies that the divergence operator exactly maps the velocity space into the pressure space.
-We are then assured that mass is conserved exactly and not approximately \citep{cockburn2007note}.
+Although we have described the IPDG method via Nitsche's method, we can arrive at the same discretization from a conservation law with an appropriate choice of numerical flux \citep{cockburn2002local}.
 
 In the test cases below, we used two families of elements, both on quadrilaterals in 2D.
 To obtain the conforming, ground truth solution, we used Taylor-Hood elements.
-We then used a non-conforming discretization where the velocity is in $H(\text{div})$.
-Here we choose the Brezzi-Douglas-Marini element of degreee $k + 1$ for the velocity and discontinuous polynomials of total degree $k$ for the pressure.
-In Firedrake or UFL parlance, these elements are respectively \texttt{BDMCF} and \texttt{DPC}.
-Alternatively, we could have chosen Raviart-Thomas elements of degree $k + 1$ for the velocity and discontinuous tensor product polynomials of degree $k$ in each direction (\texttt{RTCF} and \texttt{DQ} respectively) but the Brezzi-Douglas-Marini space is slightly smaller for the same order of accuracy.
-\textcolor{red}{Check if BDM handles anisotropy better than RT}.
+We then used a non-conforming discretization where the velocity is in $DG_{k + 1}$ and the pressure is in $DG_k$.
 
 We can also consider a formulation of the Stokes problem where the stress tensor is an additional unknown.
 Although more expensive, this form will be indispensible for simulating non-Newtonian fluid flows.
@@ -207,6 +268,7 @@ Alternatively, one can use a fixed mesh and a moving coordinate system.
 The package SICOPOLIS uses terrain-following coordinates, described in \S5.7 of \citet{greve2009dynamics} and below.
 Finally, one can use a completely fixed mesh and coordinate system and use interface-tracking techniques such as the level-set method \citep{hossain2020modelling}.
 \textcolor{red}{Check ISSM, PISM, BISICLES if we want to be exhaustive}.
+\textcolor{red}{This text is also very glaciology-biased and we should talk about geodynamics a bit.}
 Here we will pursue the approach of using a coordinate system that is fixed in the horizontal but moving in the vertical.
 
 
@@ -215,7 +277,7 @@ Here we will pursue the approach of using a coordinate system that is fixed in t
 A moving free surface presents an additional challenge because the geometry of the problem is changing in time.
 We can solve this problem -- while creating a host of other problems -- by transforming the coordinates.
 The idea of terrain-following coordinates is to map the lower surface to 0 and the upper surface to 1.
-In so doing, we can work on the Cartesian product of a footprint domain $\Phi$ and the unit interval $[0, 1]$.
+In so doing, we can work on the Cartesian product of a phootprint domain $\Phi$ and the unit interval $[0, 1]$.
 We will denote the Cartesian coordinates as $x_1, x_2, x_3$ and terrain-following coordinate as $\xi_1, \xi_2, \xi_3$.
 The transformation from terrain-following to Cartesian coordinates is
 \begin{equation}
@@ -246,7 +308,7 @@ We now know how to transform integrals into terrain-following coordinates:
 As a sanity check, this weighting factor makes the physical units work out correctly.
 
 Now we also have to think about how to transform vectors and tensors between coordinate systems.
-The velocities in Cartesian and terrain-following coordinates are not the same.
+The components of the velocity in Cartesian ($u_x$) and terrain-following ($u_\xi$) coordinates are not the same.
 We can derive the relation between them using the chain rule, and reasoning informally that a velocity is a rate of change of position with time:
 \begin{equation}
     u_x = \frac{\mathrm dx}{\mathrm dt} = \frac{\mathrm dx}{\mathrm d\xi}\frac{\mathrm d\xi}{\mathrm dt} = Ju_\xi.
@@ -279,16 +341,17 @@ We can then write down an expression for the velocity gradient:
 We obtain the strain rate tensor by symmetrizing this expression.
 
 Finally, we need to compute the divergence of a vector field.
-In Cartesian coordinates, the divergence operator is the (negative) adjoint of the gradient operator:
+In Cartesian coordinates, the divergence operator is the negative adjoint of the gradient operator:
 \begin{equation}
-    \int_\Omega q\nabla_x \cdot v_x\,\mathrm dx = -\int_\Omega\nabla_x q\cdot v_x\,\mathrm dx.
+    \int_\Omega q\nabla_x \cdot v_x\,\mathrm dx = -\int_\Omega\nabla_x q\cdot v_x\,\mathrm dx + \ldots
 \end{equation}
+Here we ignore irrelevant boundary integrals that arise from using integration by parts.
 The general expression for the divergence in other coordinate systems follows by requiring this relationship to remain true.
 We know how $\mathrm dx$, $v_x$, and $\nabla_x q$ transform from Cartesian to terrain-following coordinates:
 \begin{align}
     \ldots & = -\int_{\Phi \times [0, 1]}\nabla_\xi q \,J^{-1}\cdot Ju_\xi\;h\,\mathrm d\xi \nonumber\\
     & = -\int_{\Phi\times[0, 1]}\nabla_\xi q\cdot h u_\xi\;\mathrm d\xi \nonumber\\
-    & = \int_{\Phi\times[0, 1]}q\nabla_\xi\cdot(hu_\xi)\,\mathrm d\xi.
+    & = +\int_{\Phi\times[0, 1]}q\nabla_\xi\cdot(hu_\xi)\,\mathrm d\xi.
 \end{align}
 Here we used the fact that the factors of $J^{-1}$ and $J$ cancel out, then applied the usual trick to move the gradient back over as a divergence.
 Now we can assert that defining
@@ -324,17 +387,15 @@ This equation requires some modification when we discretize, which we describe b
 \subsection{Riemannian geometry (or not)}
 
 A reader who knows Riemannian geometry will recognize that the metric tensor $J^*J$ has made its entrance in the inner product between the body force and the velocity.
-So far we have avoided explicitly using Riemannian geometry.
-There are two reasons for this choice.
-First, many earth scientists will be unfamiliar with the terminology.
-Second, and more to the point, suppose that the bed elevation and thickness have been discretized using continuous Galerkin finite elements.
-Then the slope field $\sigma$ in equation \eqref{eq:slope-field} is discontinuous in the horizontal direction.
+As stated in the introduction, we have avoided using Riemannian geometry here.
+We will discretize the bed elevation and thickness using continuous Galerkin finite elements, which means that the slope field $\sigma$ in equation \eqref{eq:slope-field} is discontinuous in the horizontal direction.
 Consequently, \textbf{both the deformation matrix $J$ and the metric tensor are discontinuous}.
 In order to compute covariant derivatives using the usual formulas from Riemannian geometry, we need to calculate the notorious Christoffel symbols.
 But the Christoffel symbols are derivatives of the metric tensor.
+
 We could treat the Christoffel symbols as distributions.
 If we could do that, the discretization would be more complicated.
-But there is a convincing reason to believe that we cannot do that in the first place.
+But there is a convincing reason to believe that we cannot treat Christoffel symbols as distributions in the first place.
 There is no well-defined concept of the product of distributions in classic distribution theory.
 We need to (for example) take products of the strain rate tensor with itself in order to compute the dissipation rate, and that would involve products of distributions.
 
@@ -388,12 +449,11 @@ def free_energy_rate_tfc_dg(u, p, f, b, h):
 \label{fig:source-code-tfc}
 \end{figure}
 
-Suppose that we discretize the bed elevation $b$ and thickness $h$ using a standard continuous finite element basis.
-The derivative $J$ of the coordinate transformation involves gradients of $b$ and $h$.
-That means that $J$ is discontinuous across cell boundaries.
-But if we examine expression \eqref{eq:strain-rate-tfc}, $J$ appears under a gradient and we are faced with the problem of how to differentiate a discontinuous quantity.
+As we stated above, when the bed elevation and thickness are discretized using standard finite elements, the matrix $J$ is discontinuous across cell boundaries.
+If we examine expression \eqref{eq:strain-rate-tfc}, $J$ appears under a gradient and we are faced with the problem of how to differentiate a discontinuous quantity.
 This lack of continuity is the major problem we need to overcome.
-We can solve that problem with the interior penalty DG method.
+
+We can solve this problem using the interior penalty DG method.
 At a practical level, this amounts to substituting the transformed expressions for $u$ and its derivatives in terrain-following coordinates into the functional in equation \eqref{eq:sipdg-stokes-xyz}.
 For the integrals over cells $\omega$, this transformation is straightforward and already contained in equations \eqref{eq:stokes-tfc} and \eqref{eq:strain-rate-tfc}.
 The major change is in the facet integrals.
@@ -404,16 +464,13 @@ We can then more properly think of $n$ as a row vector which should be right-mul
 The analogue of equation \eqref{eq:sipdg-stokes-xyz} in terrain-following coordinates is then
 \begin{align}
     G_\alpha(u, p) & = \sum_\omega\int_\omega\int_0^1\left\{\frac{1}{2}h\tau:\dot\varepsilon - p\nabla\cdot(h u) - hf\cdot J^*Ju\right\}\ud\zeta \mathrm d\xi \nonumber \\
-    & \qquad - \sum_\gamma\int_\gamma\int_0^1\left\{\left\langle h\tau\right\rangle:[Ju\otimes n\,J^{-1}] + \langle p\rangle[hu\cdot n] \right\}\ud\zeta\ud\gamma \\
+    & \qquad - \sum_\gamma\int_\gamma\int_0^1\left\{\left\langle h\tau\right\rangle:[Ju\otimes n\,J^{-1}] + \langle p\rangle[hu\cdot n] \right\}\ud\zeta\ud\gamma \nonumber \\
     & \quad\qquad + \sum_\gamma\int_\gamma\int_0^1\frac{\alpha\mu}{2|\gamma|}|[Ju]|^2\, \langle h\rangle\ud\zeta\ud\gamma.
+    \label{eq:sipdg-stokes-tfc}
 \end{align}
 Even if we used the Taylor-Hood or MINI velocity-pressure pair, we would still need the facet integrals in order to account for the discontinuity in $J$ when the bed elevation and thickness are discretized in a finite element space.
-
-In Cartesian coordinates, we can use $H(\text{div})$-conforming elements like Brezzi-Douglas-Marini for the velocity in order to obtain better mass conservation properties and pressure robustness.
-These elements not fully discontinuous; instead, they have continuous normal components.
-This property guarantees that the divergence of the discrete velocity space is a subspace of the pressure space.
-It is a good question to ask whether we can preserve this property in a general curvilinear coordinate system, where the divergence operator picks up a factor of the determinant of $J$.
-In our case, since we use continuous finite elements for $h$, and $h$ depends only on the horizontal coordinates and not the vertical coordinate, an $H(\text{div})$-conforming element for the velocity still retains all of its desirable properties even with a different divergence operator.
+In other words, the extra DG terms restore continuity of $Ju$ in the limit of mesh refinement, even if $u$ was already continuous.
+But if we are willing to accept the added complexity of DG facet terms, then we may as well use DG schemes.
 
 The source code to produce the free energy rate for the Stokes equations in terrain-following coordinates with both conforming and non-conforming elements is shown in Figure \ref{fig:source-code-tfc}.
 The function \texttt{free\_energy\_rate\_tfc\_dg}, which adds the corrections to the free energy rate that are usually associated with non-conforming elements, is used also for conforming elements when the thickness is discretized.
@@ -565,7 +622,22 @@ Second, where both \citet{greve2009dynamics} and \citet{kleiner2014numerical} us
 Implementing the finite element method from scratch is arguably more involved than the finite difference method.
 New software tools such as Firedrake and UFL significantly reduce the gap in complexity.
 The modeler only has to correctly prescribe a variational form rather than write low-level computational kernels for finite element assembly.
-The use of $H(\text{div})$-conforming elements for the ice velocity make it possible to exactly conserve mass, which is more difficult to attain with finite difference methods.
+
+There are several problems that this work does not address.
+First, we focus here on linear problems.
+Many earth materials are plastic, pseudoplastic, or have some other non-Newtonian constitutive law.
+A straightforward extension of equation \eqref{eq:sipdg-stokes-tfc} to nonlinear constitutive relations may or may not be possible depending on the form of the non-linearity.
+Second, we focused here completely discontinuous finite elements.
+There is a middle ground where one instead uses div-conforming bases like Raviart-Thomas or Brezzi-Douglas-Marini.
+These bases guarantee exact element-wise mass conservation.
+The best that other bases can guarantee is mass conservation in an average sense \citep{cockburn2007note}.
+The catch when using equation \eqref{eq:sipdg-stokes-tfc} is that the divergence operator now includes a factor of $h$.
+Obtaining an div-conforming discretization with this different definition of the divergence would require significant modification, for example by working with $hu$ as the main unknown instead of $u$.
+Finally, the stability and convergence theory for most finite element bases assumes that the cells of the mesh are shape-regular.
+Certain particular choices of finite element basis still work well even when the mesh is highly anisotropic.
+We did not investigate these elements here and instead carefully chose the horizontal and vertical resolution together.
+These techniques will be much more effective on typical problems in the earth sciences if they can be made robust to small aspect ratio.
+These issues and others will be the subject of future work.
 
 
 \pagebreak
