@@ -103,7 +103,7 @@ cfl_time = δx / u_max
 print(f"CFL time: {cfl_time} years")
 
 # Step the model forward in time
-method = irksome.BackwardEuler()
+method = irksome.RadauIIA(2)
 t = Constant(0.0)
 dt = Constant(0.5)
 solver = irksome.TimeStepper(F, method, t, dt, z, **pparams, **sparams)
