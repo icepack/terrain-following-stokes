@@ -580,11 +580,50 @@ The simulations converge with all timesteps up to the maximum duration.
 
 \subsection{Perlin glacier}
 
-For a more involved test case, we use a simplification of the ``Perlin glacier'' problem from \citet{ahlkrona2026fully}.
+\begin{figure}
+    \begin{center}
+        \includegraphics[width=0.8\linewidth]{demo/perlin-glacier/perlin-glacier.png}
+    \end{center}
+    \caption{Evolution of a glacier over randomized bed topography every 10 years over a 400-year spin-up.}
+    \label{fig:perlin-glacier}
+\end{figure}
+
+For a more involved test case, we use a variant of the ``Perlin glacier'' problem from \citet{ahlkrona2026fully}.
 Our focus here is on the use of terrain-following coordinates and discontinuous Galerkin methods, so instead of using the Glen flow law, we use a linear viscous rheology.
 The sliding law is the same.
-As a more involved test case, we generate a random bed topography and spin up the model for 400 years.
+
+The bed topography is the sum of a baseline which is a quadratic function of the distance and a perturbation:
+\begin{equation}
+    b = \alpha/L\cdot(x - L)^2 + \delta b.
+\end{equation}
+The perturbation is a sum of random cubic splines, each of which is divided into ``octaves'':
+\begin{equation}
+    \delta b = \sum_{k = 1}^K c_k\,\delta B_k(x)
+\end{equation}
+where $c_k$ is the amplitude of the $k$th octave.
+Each octave constituent $\delta B_k$ is a cubic spline with $2^k$ knot points distributed evenly through the interval.
+The values of $\delta B_k$ are set to 0 the derivatives are chose uniformly in the interval $[-1, 1]$.
+We used $K = 4$ octaves with amplitudes $[1/4, 1/2, 1, 1]$.
+
+The original test case in \citet{ahlkrona2026fully} uses a surface mass balance that is a function of distance and fixed for all time.
+We added feedback between the surface elevation and surface mass balance:
+\begin{equation}
+    \dot a = \max\left\{\dot a_{\text{max}}, \frac{\delta a}{\delta s}(s - f\alpha L)\right\}
+\end{equation}
+where the dimensionless fraction $f$ dictates where the equilibrium line altitue (ELA) is relative to the top of the mountain and $\delta a/\delta s$ is tuned in order to make the accumulation equal to its maximum value at the top of the mountain.
+Here we took the maximum accumulation rate to be $\dot a_{\text{max}} = 1$ m/yr and the ELA fraction $f = 0.4$ so that the ELA occurs at a height of 320 m.
+We then spin the up the model for 400 years.
+
 We use again DQ${}_2$ elements for velocity, DQ${}_1$ elements for pressure, and CG${}_1$ elements for thickness.
+The mesh had 500 elements in the horizontal and 5 in the vertical.
+We note that this ratio cannot be adjusted arbitrarily because of the method fails to converge if the elements grow too thin, but see the discussion.
+We used an absolute convergence tolerance of $10^{-10}$ and a relative tolerance of $10^{-8}$.
+The results are shown in Figure \ref{fig:perlin-glacier}.
+Solving the fully-coupled system of both mass and momentum balance equations required 5 Newton iterations or less at every step.
+
+\textcolor{red}{TODO: Repeat it at a finer discretization and check that the number of Newton iterations doesn't increase.
+Try it with Radau-IIA.
+Reimplement using the conventional scheme, maybe with FSSA.}
 
 
 % ------------------
