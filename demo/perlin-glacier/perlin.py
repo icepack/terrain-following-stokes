@@ -28,10 +28,12 @@ sparams = {
     "solver_parameters": {
         "snes_type": "vinewtonrsls",
         "snes_linesearch_type": "secant",
+        "snes_linesearch_max_it": 40,
         "pc_factor_mat_solver_type": "mumps",
         "mat_mumps_icntl_7": 5,
         "mat_mumps_icntl_14": 100,
         "snes_stol": 0.0,
+        "snes_atol": 1e-10,
         "snes_monitor": None,
         "snes_converged_reason": None,
     },
@@ -61,7 +63,7 @@ b = firedrake.Function(H)
 xs = interval.coordinates.dat.data_ro
 L, α = constants["length"], constants["slope"]
 rng = np.random.default_rng(seed=1729)
-cs = np.array([1.0, 2.0, 4.0, 6.0])
+cs = np.array([0.25, 0.5, 1.0, 1.0])
 generator = noise.PerlinNoise(cs, rng)
 bs = α / L * (xs - L)**2 + α * L * generator(xs / L)
 b.dat.data[:] = bs
@@ -94,19 +96,25 @@ pparams = {"form_compiler_parameters": {"quadrature_degree": 4 * degree}}
 F_initial = F_momentum + (h - h_initial) * φ * dx
 firedrake.solve(F_initial == 0, z, **pparams, **sparams)
 
+# Create the mass balance function
+x, ζ = firedrake.SpatialCoordinate(mesh)
+s = b + h
+
+α = Constant(constants["slope"])
+L = Constant(constants["length"])
+s_max = Constant(α * L)
+a_max = Constant(1.0)
+ela_fraction = Constant(0.4)  # Equilibrium is at this fraction of max height
+da_ds = Constant(a_max / ((1 - ela_fraction) * s_max))
+a_expr = firedrake.min_value(a_max, da_ds * (s - ela_fraction * s_max))
+a = firedrake.Function(H).interpolate(a_expr)
+
 # Time evolution
 u = z.subfunctions[0]
 u_max = np.abs(u.dat.data_ro).max()
 δx = constants["length"] / nx
 cfl_time = δx / u_max
 print(f"CFL time: {cfl_time} years")
-
-x, ζ = firedrake.SpatialCoordinate(mesh)
-a_0 = Constant(1.0)
-d = Constant(3.0)
-L = Constant(constants["length"])
-a_expr = a_0 * (1 - d * x / L)
-a = firedrake.Function(H).interpolate(a_expr)
 
 F_mass = terrain_following.mass_balance(**fields) - a * φ * dx
 F = F_momentum + F_mass
