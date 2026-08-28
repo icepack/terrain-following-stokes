@@ -382,6 +382,28 @@ where the deviatoric stress $\tau$ is again equal to $2\mu\dot\varepsilon$, but 
 \end{equation}
 While there are extra terms in this functional compared to the expression in Cartesian coordinates, all of them are expressible in the Unified Form Language or related domain-specific languages for PDEs.
 
+We might also want a form of the problem where the stress tensor is an additional unknown.
+This alternate form is the convex conjugate of the functional in equation \eqref{eq:stokes-tfc} with respect to the duality pairing
+\begin{equation}
+    \langle \tau, u\rangle = \int_\Phi\int_0^1h\tau : \dot\varepsilon(u)\,\mathrm d\xi.
+\end{equation}
+The conjugate functional is
+\begin{equation}
+    G^*(u, p, \tau) = \int_\Phi\int_0^1\left\{\frac{1}{4\mu}h|\tau|^2 - h\tau :\dot\varepsilon(u) + p\nabla\cdot hu + hf\cdot J^*Ju\right\}\mathrm d\xi
+    \label{eq:stokes-conjugate-tfc}
+\end{equation}
+The usual reason to include the stress as an unknown is because the constitutive law is defined implicitly.
+Here the addition of the stress buys us something different.
+In the primal form of equation \eqref{eq:stokes-tfc}, there is an unavoidable factor of the inverse of $h$.
+The first term consists of the product of $\dot\varepsilon(u)$ with itself.
+Recall from equation \eqref{eq:strain-rate-tfc} that each factor of the strain rate carries a factor of $J^{-1}$, which in turn carries a factor of $h^{-1}$.
+We multiply this first term by $h$ and that cancels out one factor of $h^{-1}$, but it still leaves the other.
+Now by passing to the dual form in equation \eqref{eq:stokes-conjugate-tfc}, there is now only one factor of $\dot\varepsilon(u)$.
+That term is multiplied by $h$.
+The advantage of having only factors of $h$ and no factors of $h^{-1}$ is that the integrand is a polynomial.
+We can then pick a quadrature rule that allows us to integrate it exactly, ruling out a potential source of error.
+The expense of including the stress as an unknown might not be a good price to pay just to turn a rational integrand into a polynomial, but it is still worth noting.
+
 Finally, the thickness evolves in time according to a conservative advection equation.
 The variational form of this equation is
 \begin{equation}
@@ -389,8 +411,6 @@ The variational form of this equation is
 \end{equation}
 where $\phi$ is an arbitrary test function, $\bar u$ is the depth-averaged velocity, and $\dot a$, $\dot m$ are the accumulation and ablation rates.
 This equation requires some modification when we discretize, which we describe below.
-
-\textcolor{red}{TODO for Daniel: write the velocity-pressure-stress form in terrain-following coordinates.}
 
 \subsection{Riemannian geometry (or not)}
 
@@ -471,14 +491,24 @@ The easiest way to remember how $n$ transforms is to recall that it is the gradi
 We can then more properly think of $n$ as a row vector which should be right-multiplied by $J^{-1}$.
 The analogue of equation \eqref{eq:sipdg-stokes-xyz} in terrain-following coordinates is then
 \begin{align}
-    G_\alpha(u, p) & = \sum_\omega\int_\omega\int_0^1\left\{\frac{1}{2}h\tau:\dot\varepsilon - p\nabla\cdot(h u) - hf\cdot J^*Ju\right\}\ud\zeta \mathrm d\xi \nonumber \\
-    & \qquad - \sum_\gamma\int_\gamma\int_0^1\left\{\left\langle h\tau\right\rangle:[Ju\otimes n\,J^{-1}] + \langle p\rangle[hu\cdot n] \right\}\ud\zeta\ud\gamma \nonumber \\
-    & \quad\qquad + \sum_\gamma\int_\gamma\int_0^1\frac{\alpha\mu}{2|\gamma|}|[Ju]|^2\, \langle h\rangle\ud\zeta\ud\gamma.
+    G_\alpha(u, p) & = \sum_\omega\int_\omega\int_0^1\left\{\frac{1}{2}h\tau:\dot\varepsilon - p\nabla\cdot(h u) - hf\cdot J^*Ju\right\}\ud\xi \nonumber \\
+    & \qquad - \sum_\gamma\int_\gamma\int_0^1\left\{\left\langle h\tau\right\rangle:[Ju\otimes n\,J^{-1}] + \langle p\rangle[hu\cdot n] \right\}\ud\gamma \nonumber \\
+    & \quad\qquad + \sum_\gamma\int_\gamma\int_0^1\frac{\alpha\mu}{2|\gamma|}|[Ju]|^2\, \langle h\rangle\ud\gamma
     \label{eq:sipdg-stokes-tfc}
 \end{align}
+where again $\tau = 2\mu\dot\varepsilon$ and the strain rate tensor in terrain-following coordinates is defined in equation \eqref{eq:strain-rate-tfc}.
 Even if we used the Taylor-Hood or MINI velocity-pressure pair, we would still need the facet integrals in order to account for the discontinuity in $J$ when the bed elevation and thickness are discretized in a finite element space.
 In other words, the extra DG terms restore continuity of $Ju$ in the limit of mesh refinement, even if $u$ was already continuous.
 But if we are willing to accept the added complexity of DG facet terms, then we may as well use DG schemes.
+
+The functional to be minimized for the velocity-pressure-stress form is again derivable as the convex conjugate of the corresponding primal form:
+\begin{align}
+    G_\alpha^*(u, p, \tau) & = \sum_\omega\int_\omega\int_0^1\left\{\frac{1}{4\mu}h|\tau| - h\tau:\dot\varepsilon + p\nabla\cdot(h u) + hf\cdot J^*Ju\right\}\ud\xi \nonumber \\
+    & \qquad + \sum_\gamma\int_\gamma\int_0^1\left\{\left\langle h\tau\right\rangle:[Ju\otimes n\,J^{-1}] + \langle p\rangle[hu\cdot n] \right\}\ud\gamma \nonumber \\
+    & \quad\qquad - \sum_\gamma\int_\gamma\int_0^1\frac{\alpha\mu}{2|\gamma|}|[Ju]|^2\, \langle h\rangle\ud\gamma
+    \label{eq:sipdg-stokes-tfc}
+\end{align}
+\textcolor{red}{Check that we can make the integrand a polynomial}.
 
 The source code to produce the free energy rate for the Stokes equations in terrain-following coordinates with both conforming and non-conforming elements is shown in Figure \ref{fig:source-code-tfc}.
 The function \texttt{free\_energy\_rate\_tfc\_dg}, which adds the corrections to the free energy rate that are usually associated with non-conforming elements, is used also for conforming elements when the thickness is discretized.
