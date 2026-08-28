@@ -14,7 +14,9 @@
 \usepackage{csquotes}
 %\usepackage{float}
 %\usepackage{hyperref}
-%\usepackage[modulo, displaymath, mathlines]{lineno}
+\usepackage[modulo, displaymath, mathlines]{lineno}
+\linenumbers
+\usepackage[margin=1in]{geometry}
 %\usepackage{setspace}
 %\usepackage[titletoc,toc,title]{appendix}
 \usepackage{natbib}
@@ -153,7 +155,7 @@ Operator-splitting schemes can require small timesteps in order to avoid the ``d
 How to stabilize the numerical scheme is an active area of research \citep{ahlkrona2026fully}.
 
 \paragraph{Contribution.}
-Terrain-following coordinates are pervasive in the literature on atmospheric science and oceanography \citep{gal1975use}.
+Terrain-following coordinates are pervasive in atmospheric science and oceanography \citep{gal1975use}.
 Several papers have examined how to rewrite the Navier-Stokes equations in curvilinear coordinate systems using Riemannian geometry \citep{luo2004contravariant}.
 A handful of papers in aeronautical engineering have derived the Navier-Stokes equations in curvilinear coordinate systems using only the linearization map $J$ instead of a metric tensor \citep{warsi1981conservation, yang1994general}.
 \citet{cannata2019numerical} used these techniques to discretize the equations of free surface fluid flow, but they used a finite volume and not a finite element discretization.
@@ -508,7 +510,7 @@ The functional to be minimized for the velocity-pressure-stress form is again de
     G_\alpha^*(u, p, \tau) & = \sum_\omega\int_\omega\left\{\frac{1}{4\mu}h|\tau|^2 - h\tau:\dot\varepsilon + p\nabla\cdot(h u) + hf\cdot J^*Ju\right\}\ud\xi \nonumber \\
     & \qquad + \sum_\gamma\int_\gamma\left\{\left\langle h\tau\right\rangle:[Ju\otimes n\,J^{-1}] + \langle p\rangle[hu\cdot n] \right\}\ud\gamma \nonumber \\
     & \quad\qquad - \sum_\gamma\int_\gamma\frac{\alpha\mu}{2|\gamma|}|[Ju]|^2\, \langle h\rangle\ud\gamma
-    \label{eq:sipdg-stokes-tfc}
+    \label{eq:sipdg-stokes-dual-tfc}
 \end{align}
 \textcolor{red}{Check that we can make the integrand a polynomial}.
 
