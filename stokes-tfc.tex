@@ -167,8 +167,11 @@ To our knowledge, this equation has not appeared in the glaciology or geodynamic
 An important consequence is that we can solve the coupled mass and momentum balance equations all at once without recourse to operator splitting.
 
 
-% -----------------------------------
-\section{DG discretization of Stokes}
+% ------------------
+\section{Background}
+
+Here we review the Stokes equations in Cartesian coordinates and how to discretize them with interior penalty methods.
+The interior penalty method will prove indispensible when we switch from Cartesian to terrain-following coordinates.
 
 The incompressible Stokes equations can be derived through minimization of the free energy dissipation rate
 \begin{equation}
@@ -226,8 +229,7 @@ The Nitsche functional is
 \end{equation}
 Here $\ell$ is a measure of the local facet diameter and $\alpha$ is a constant related to the mesh regularity.
 
-In the following, we will use the \emph{symmetric interior penalty discontinuous Galerkin} (SIPDG) method.
-This method is what we get when we apply Nitsche's method to every cell $\omega$ of the mesh:
+The symmetric interior penalty discontinuous Galerkin (SIPDG) method is what we get when we apply Nitsche's method to every cell $\omega$ of the mesh:
 \begin{align}
     & G_\alpha(u, p) = \sum_\omega\int_\omega\left\{\frac{1}{2}\tau:\dot\varepsilon - p\nabla\cdot u - f\cdot u\right\}\mathrm dx \nonumber \\
     & \qquad - \sum_\gamma\int_\gamma \left\langle\tau - pI \right\rangle: [u\otimes n]\,\mathrm d\gamma + \sum_\gamma\int_\gamma\frac{\alpha\mu}{2|\gamma|}|[u]|^2\mathrm d\gamma \label{eq:sipdg-stokes-xyz}
@@ -245,17 +247,17 @@ We can catch potential errors in the variational form by remembering that the DG
 Figure \ref{fig:source-code-xyz} shows the source code for producing the free energy rate in Cartesian coordinates for both conforming and non-conforming elements.
 Although we have described the IPDG method via Nitsche's method, we can arrive at the same discretization from a conservation law with an appropriate choice of numerical flux \citep{cockburn2002local}.
 
-In the test cases below, we used two families of elements, both on quadrilaterals in 2D.
-To obtain the conforming, ground truth solution, we used Taylor-Hood elements.
-We then used a non-conforming discretization where the velocity is in $DG_{k + 1}$ and the pressure is in $DG_k$.
-
 We can also consider a formulation of the Stokes problem where the stress tensor is an additional unknown.
 While more expensive, it is necessary to explicitly include the stress in order to simulate non-Newtonian fluid flows when the constitutive relation is implicit \citep{farrell2020numerical}.
 Here our focus is on Newtonian fluids, but as we will see below, the velocity-pressure-stress form has advantages even in the Newtonian case when using terrain-following coordinates.
-The free energy dissipation rate for the velocity-pressure-stress form of the Stokes equations is
-\begin{equation}
-    L^*(u, p, \tau) = \int_\Omega\left\{\frac{1}{4\mu}|\tau|^2 - \tau :\dot\varepsilon(u) + p\nabla\cdot u + f\cdot u\right\}\mathrm dx.
-\end{equation}
+The velocity-pressure-stress form of the Stokes equations can also be derived from a minimization principle.
+The complementary free energy dissipation rate is just the convex conjugate of the original primal form.
+This gives us the analogue of equation \eqref{eq:sipdg-stokes-tfc}:
+\begin{align}
+    G_\alpha^*(u, p, \tau) & = \int_\Omega\left\{\frac{1}{4\mu}|\tau|^2 - \tau :\dot\varepsilon(u) + p\nabla\cdot u + f\cdot u\right\}\mathrm dx \nonumber \\
+    & \qquad + \sum_\gamma\int_\gamma \left\langle\tau - pI \right\rangle: [u\otimes n]\,\mathrm d\gamma - \sum_\gamma\int_\gamma\frac{\alpha\mu}{2|\gamma|}|[u]|^2\mathrm d\gamma \label{eq:sipdg-stokes-dual-xyz}
+\end{align}
+Note how the sign on the facet fluxes and penalty has changed.
 This form of the problem assumes that the stresses are in $L^2(\Omega, \mathbb S)$ and the velocities in $H^1(\Omega, \mathbb{R}^d)$.
 This form is more common in the literature on implicit constitutive relations.
 In general it is more common to look for a stress in $H(\text{div})$ and a velocity in $L^2$.
@@ -435,8 +437,8 @@ A handful of other works in the research literature have derived the Navier-Stok
 We are not aware of any research works examining a variational form or discretization via finite elements.
 
 
-% -------------------------------------------------------
-\section{Discretization in terrain-following coordinates}
+% ----------------------
+\section{Discretization}
 
 \begin{figure}
 \begin{lstlisting}
@@ -491,9 +493,9 @@ The easiest way to remember how $n$ transforms is to recall that it is the gradi
 We can then more properly think of $n$ as a row vector which should be right-multiplied by $J^{-1}$.
 The analogue of equation \eqref{eq:sipdg-stokes-xyz} in terrain-following coordinates is then
 \begin{align}
-    G_\alpha(u, p) & = \sum_\omega\int_\omega\int_0^1\left\{\frac{1}{2}h\tau:\dot\varepsilon - p\nabla\cdot(h u) - hf\cdot J^*Ju\right\}\ud\xi \nonumber \\
-    & \qquad - \sum_\gamma\int_\gamma\int_0^1\left\{\left\langle h\tau\right\rangle:[Ju\otimes n\,J^{-1}] + \langle p\rangle[hu\cdot n] \right\}\ud\gamma \nonumber \\
-    & \quad\qquad + \sum_\gamma\int_\gamma\int_0^1\frac{\alpha\mu}{2|\gamma|}|[Ju]|^2\, \langle h\rangle\ud\gamma
+    G_\alpha(u, p) & = \sum_\omega\int_\omega\left\{\frac{1}{2}h\tau:\dot\varepsilon - p\nabla\cdot(h u) - hf\cdot J^*Ju\right\}\ud\xi \nonumber \\
+    & \qquad - \sum_\gamma\int_\gamma\left\{\left\langle h\tau\right\rangle:[Ju\otimes n\,J^{-1}] + \langle p\rangle[hu\cdot n] \right\}\ud\gamma \nonumber \\
+    & \quad\qquad + \sum_\gamma\int_\gamma\frac{\alpha\mu}{2|\gamma|}|[Ju]|^2\, \langle h\rangle\ud\gamma
     \label{eq:sipdg-stokes-tfc}
 \end{align}
 where again $\tau = 2\mu\dot\varepsilon$ and the strain rate tensor in terrain-following coordinates is defined in equation \eqref{eq:strain-rate-tfc}.
@@ -503,9 +505,9 @@ But if we are willing to accept the added complexity of DG facet terms, then we 
 
 The functional to be minimized for the velocity-pressure-stress form is again derivable as the convex conjugate of the corresponding primal form:
 \begin{align}
-    G_\alpha^*(u, p, \tau) & = \sum_\omega\int_\omega\int_0^1\left\{\frac{1}{4\mu}h|\tau| - h\tau:\dot\varepsilon + p\nabla\cdot(h u) + hf\cdot J^*Ju\right\}\ud\xi \nonumber \\
-    & \qquad + \sum_\gamma\int_\gamma\int_0^1\left\{\left\langle h\tau\right\rangle:[Ju\otimes n\,J^{-1}] + \langle p\rangle[hu\cdot n] \right\}\ud\gamma \nonumber \\
-    & \quad\qquad - \sum_\gamma\int_\gamma\int_0^1\frac{\alpha\mu}{2|\gamma|}|[Ju]|^2\, \langle h\rangle\ud\gamma
+    G_\alpha^*(u, p, \tau) & = \sum_\omega\int_\omega\left\{\frac{1}{4\mu}h|\tau|^2 - h\tau:\dot\varepsilon + p\nabla\cdot(h u) + hf\cdot J^*Ju\right\}\ud\xi \nonumber \\
+    & \qquad + \sum_\gamma\int_\gamma\left\{\left\langle h\tau\right\rangle:[Ju\otimes n\,J^{-1}] + \langle p\rangle[hu\cdot n] \right\}\ud\gamma \nonumber \\
+    & \quad\qquad - \sum_\gamma\int_\gamma\frac{\alpha\mu}{2|\gamma|}|[Ju]|^2\, \langle h\rangle\ud\gamma
     \label{eq:sipdg-stokes-tfc}
 \end{align}
 \textcolor{red}{Check that we can make the integrand a polynomial}.
@@ -514,8 +516,14 @@ The source code to produce the free energy rate for the Stokes equations in terr
 The function \texttt{free\_energy\_rate\_tfc\_dg}, which adds the corrections to the free energy rate that are usually associated with non-conforming elements, is used also for conforming elements when the thickness is discretized.
 
 
-% ----------------------------------
-\section{Testing the implementation}
+% ----------------------
+\section{Implementation}
+
+We use the Firedrake package to discretize the problem \citep{rathgeber2016firedrake}.
+A valuable feature for simulating thin-film flows is the ability to create tensor product meshes and elements.
+The kernels for assembling stiffness matrices and load vectors can be optimized specifically for tensor product meshes in a way that is not available on general unstructured meshes \citep{mcrae2016automated}.
+In all test cases, we use LU factorization in order to be sure that any errors are due to the discretization and not to a poorly-tuned iterative solver.
+The penalty parameters $\alpha$ in the SIPDG methods are all chosen according to the explicit lower bound from \citep{warburton2003constants}.
 
 \begin{figure}
     \includegraphics[width=0.98\linewidth]{demo/testing/flowchart.pdf}
