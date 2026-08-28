@@ -68,12 +68,12 @@
 
 \maketitle
 
-\abstract{This paper describes how to simulate viscous thin-film fluid flows by using a combination of terrain-following coordinates and discontinuous Galerkin discretization.
-Terrain-following coordinates were originally developed for simulating the flows of the atmosphere and ocean over variable topography.
+\abstract{This paper describes how to simulate viscous thin-film fluid flows using a combination of terrain-following coordinates and discontinuous Galerkin discretization.
+Terrain-following coordinates were originally developed for simulating the flow of the atmosphere and ocean over variable topography.
 For these problems, viscosity is negligible, so the equations of motion contain only first-order derivatives in space and time.
-Here we are interested in free-surface fluid flows in the earth sciences where viscous effects are dominant.
+Here we are interested in free-surface flows where viscous effects are dominant.
 These problems include the flow of glaciers, lava, or the earth's mantle.
-The equations of motion for these problems contain second-order derivatives.
+The equations of motion now contain second-order derivatives when viscosity is important.
 Transforming these terms to the new coordinate system is more complex.
 In particular, the warping factor from terrain-following to Cartesian coordinates depends on the slope of the surface and bed.
 When the topography has been discretized in a finite element space, these slopes jump across cell boundaries.
@@ -116,21 +116,21 @@ For example, suppose we follow a material parcel at the bottom of a fluid film.
 We assume that the fluid is not in perfect contact with its bed, so it can slip but it cannot penetrate through the bed.
 This assumption means that the velocity vector is always parallel to the bed.
 In Cartesian coordinates, the vertical component of the velocity will be positive when the particle is flowing uphill and negative when the particle is flowing downhill.
-But in the vertical component of the velocity will always be zero in terrain-following coordinates.
+But the vertical component of the velocity will always be zero in terrain-following coordinates.
 
 Now there is a choice to make: do we solve for the Cartesian components of the velocity vector, or do we solve for the intrinsic, contravariant components of the velocity vector in the transformed coordinate system?
 In this work, we will always solve for the intrinsic, contravariant components of the velocity vector in terrain-following coordinates.
 We argue that this has certain conceptual advantages.
 But we emphasize that the representation is a modeling choice.
 
-The theory of general curvilinear coordinate systems and Riemannian geometry provides useful tools here.
+Several papers use Riemannian geometry and covariant derivatives to describe the form that the equations of motion take in terrain-following coordinates.
 The seminal paper of \citet{gal1975use} adopts this approach.
 This viewpoint replaces the Euclidean inner product with a metric tensor $g_{ij}(x)$.
 The metric tensor tells us how to calculate inner products between direction vectors at the point $x$.
 The metric tensor has to be symmetric and positive definite and, unlike the Euclidean inner product, varies in space.
 We can then compute the Christoffel (``Christ-awful'') symbols for this metric, which allows us to derive expressions for the gradient, divergence, and curl.
 
-There is a major problem with this approach if we want to use certain numerical methods.
+There is a major problem with adopting Riemannian geometry if we want to use certain numerical methods.
 The metric tensor depends on the slope of the bed and surface.
 But our goal was to describe fluid films with a free surface.
 The free surface evolution law is a hyperbolic partial differential equation.
@@ -155,7 +155,7 @@ How to stabilize the numerical scheme is an active area of research \citep{ahlkr
 \paragraph{Contribution.}
 Terrain-following coordinates are pervasive in the literature on atmospheric science and oceanography \citep{gal1975use}.
 Several papers have examined how to rewrite the Navier-Stokes equations in curvilinear coordinate systems using Riemannian geometry \citep{luo2004contravariant}.
-A handful of papers in aeronautical engineering have gone so far as to express the Navier-Stokes equations in curvilinear coordinate systems using only the linearization map $J$ instead of a metric tensor \citep{warsi1981conservation, yang1994general}.
+A handful of papers in aeronautical engineering have derived the Navier-Stokes equations in curvilinear coordinate systems using only the linearization map $J$ instead of a metric tensor \citep{warsi1981conservation, yang1994general}.
 \citet{cannata2019numerical} used these techniques to discretize the equations of free surface fluid flow, but they used a finite volume and not a finite element discretization.
 \citet{greve2009dynamics} use terrain-following coordinates for glacier flow, but their approach differs from ours in two ways.
 First, they do not use the Stokes equations but rather a perturbative simplification based on the smallness of the domain aspect ratio.
@@ -163,7 +163,7 @@ Second, they work with the Cartesian components of the velocity vector rather th
 
 Our contribution is to show how to discretize thin-film flow at low Reynolds number using discontinuous Galerkin methods.
 This is summed up in its entirety in equation \eqref{eq:sipdg-stokes-tfc}, which is the most important part of the paper.
-To our knowledge, this has not appeared in the glaciology or geodynamics literature before.
+To our knowledge, this equation has not appeared in the glaciology or geodynamics literature before.
 An important consequence is that we can solve the coupled mass and momentum balance equations all at once without recourse to operator splitting.
 
 
@@ -250,16 +250,15 @@ To obtain the conforming, ground truth solution, we used Taylor-Hood elements.
 We then used a non-conforming discretization where the velocity is in $DG_{k + 1}$ and the pressure is in $DG_k$.
 
 We can also consider a formulation of the Stokes problem where the stress tensor is an additional unknown.
-Although more expensive, this form will be indispensible for simulating non-Newtonian fluid flows.
-There are several equivalent mixed forms of the Stokes problem.
-Here we use the deviatoric stress tensor; it is also possible to use the full stress tensor.
-The optimization form of this problem is to find a critical point of the functional
+While more expensive, it is necessary to explicitly include the stress in order to simulate non-Newtonian fluid flows when the constitutive relation is implicit \citep{farrell2020numerical}.
+Here our focus is on Newtonian fluids, but as we will see below, the velocity-pressure-stress form has advantages even in the Newtonian case when using terrain-following coordinates.
+The free energy dissipation rate for the velocity-pressure-stress form of the Stokes equations is
 \begin{equation}
     L^*(u, p, \tau) = \int_\Omega\left\{\frac{1}{4\mu}|\tau|^2 - \tau :\dot\varepsilon(u) + p\nabla\cdot u + f\cdot u\right\}\mathrm dx.
 \end{equation}
 This form of the problem assumes that the stresses are in $L^2(\Omega, \mathbb S)$ and the velocities in $H^1(\Omega, \mathbb{R}^d)$.
-It is more common to look for a stress in $H(\text{div})$ and a velocity in $L^2$.
-We will use a non-conforming discretization in the end, so these distinctions will become unimportant.
+This form is more common in the literature on implicit constitutive relations.
+In general it is more common to look for a stress in $H(\text{div})$ and a velocity in $L^2$.
 
 
 % -------------------------------------
