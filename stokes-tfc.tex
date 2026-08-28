@@ -94,11 +94,20 @@ We can then compute the physical elevation in Cartesian coordinates as
     z = b(x, y) + \zeta \cdot h(x, y, t)
 \end{equation}
 where $b$ and $h$ are the bottom topography and fluid thickness.
+See Figure \ref{fig:tfc-vs-xyz} for an illustration.
 We assume that the fluid film thickness can change in time but that the bottom topography is fixed.
 When using Cartesian coordinates, the computational grid has to be deformed to the surface and bottom topography.
-\textcolor{red}{Illustration}.
 This results in more complicated formulas to discretize a conservation law.
 The tradeoff in using terrain-following coordinates is that the computational grid is regular, but now there are warping terms that have to go into the equations of motion.
+
+\begin{figure}
+    \begin{center}
+        \includegraphics[width=0.8\linewidth]{demo/tfc-vs-xyz/tfc-vs-xyz.png}
+    \end{center}
+    \caption{Transformation from the terrain-following (left) to Cartesian coordinates (right).
+    Surface of constant $\zeta$ are mapped to surfaces of variable elevation $z$.}
+    \label{fig:tfc-vs-xyz}
+\end{figure}
 
 A running theme throughout the following will be what we mean by ``velocity''.
 The velocity is the rate of change of the position of a particle that is moving with the fluid.
