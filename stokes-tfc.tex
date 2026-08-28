@@ -570,6 +570,15 @@ Here we provide demonstrations beyond the unit tests described above.
 
 \subsection{Relaxation of sinusoidal surface}
 
+\begin{figure}[t]
+    \begin{center}
+        \includegraphics[width=0.8\linewidth]{demo/sinusoidal-relaxation/relaxation.png}
+    \end{center}
+    \caption{Relaxation of sinusoidal initial surface.
+    Contours show the surface every 2 years of simulation time.}
+    \label{fig:relaxation}
+\end{figure}
+
 As a ``smoke test'', we consider relaxation of a sinusoidal surface based on the first test case from \citet{ahlkrona2026fully}.
 We used a no-slip condition on the bottom of the domain, free-slip conditions on the side walls, and no stress on the surface.
 The parameters for the simulation are described in \textcolor{red}{Table X}.
@@ -577,10 +586,11 @@ For the numerical scheme, we use DQ${}_2$ elements for the velocity, DQ${}_1$ el
 We used a backward Euler timestepping scheme and solve the coupled mass and momentum balance equations all at once.
 
 The simulations converge with all timesteps up to the maximum duration.
+Figure \ref{fig:relaxation} shows the evolution of the fluid surface with a timestep of 0.5 years.
 
 \subsection{Perlin glacier}
 
-\begin{figure}
+\begin{figure}[t]
     \begin{center}
         \includegraphics[width=0.8\linewidth]{demo/perlin-glacier/perlin-glacier.png}
     \end{center}
@@ -629,7 +639,7 @@ Reimplement using the conventional scheme, maybe with FSSA.}
 % ------------------
 \section{Discussion}
 
-We presented an approach to formulating the Stokes equations in terrain-following coordinates and discretized the problem with the discontinuous Galerkin finite element method.
+We presented a reformulation of the Stokes equations in terrain-following coordinates and showed how to discretize the problem with the discontinuous Galerkin finite element method.
 Several previous works have used terrain-following coordinates for ice flow modeling.
 \citet{kleiner2014numerical} is the closest in spirit to this work.
 They used a higher-order ice flow model with a transformed coordinate system but discretized the problem using the finite difference method.

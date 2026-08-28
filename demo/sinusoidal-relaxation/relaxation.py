@@ -47,7 +47,7 @@ timesteps = np.array([0.001, 0.005, 0.01, 0.05, 0.1, 0.5, 1, 2.5, 5, 10, 20])
 # Set up the mesh and function spaces
 nx, nz = 50, 5
 interval = firedrake.IntervalMesh(nx, constants["length"])
-mesh = firedrake.ExtrudedMesh(interval, nz)
+mesh = firedrake.ExtrudedMesh(interval, nz, name="domain")
 
 degree = 2
 u_element = firedrake.FiniteElement("DQ", "quadrilateral", degree)
@@ -81,7 +81,7 @@ params = {
 fields = {"velocity": u, "pressure": p, "thickness": h, "bed": b}
 # TODO: Find out what boundary conditions Alkhrona et al. used. At the least
 # we should have free slip along the side walls but the bed could be either no
-# slip or free slip.
+# slip or friction.
 boundary_data = {"robin_ids": [1, 2], "dirichlet_ids": ["bottom"]}
 G = terrain_following.free_energy_rate(**fields, **params, **boundary_data)
 
@@ -110,6 +110,12 @@ solver = irksome.TimeStepper(F, method, t, dt, z, **pparams, **sparams)
 
 zs = [z.copy(deepcopy=True)]
 num_steps = int(constants["final_time"] / float(dt))
-for step in tqdm.trange(num_steps):
-    solver.advance()
-    zs.append(z.copy(deepcopy=True))
+with firedrake.CheckpointFile("relaxation.h5", "w") as chk:
+    chk.save_mesh(mesh)
+    chk.h5pyfile.attrs["num_steps"] = num_steps + 1
+    chk.h5pyfile.attrs["final_time"] = constants["final_time"]
+    chk.save_function(z, name="solution", idx=0)
+    for step in tqdm.trange(num_steps):
+        solver.advance()
+        zs.append(z.copy(deepcopy=True))
+        chk.save_function(z, name="solution", idx=step + 1)
