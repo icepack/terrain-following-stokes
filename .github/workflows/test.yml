@@ -1,0 +1,15 @@
+name: 'Build and test zetastokes package'
+on: [push, pull_request]
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    container:
+      image: docker.io/firedrakeproject/firedrake-vanilla-default:2026.4.0
+      options: --user root
+    steps:
+      - name: Check out repo
+        uses: actions/checkout@v5
+      - name: Install package
+        run: python3 -m pip install ./package
+      - name: Run unit tests
+        run: python3 -m pytest package/test/ -s --verbose

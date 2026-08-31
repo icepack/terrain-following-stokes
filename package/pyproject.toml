@@ -5,6 +5,9 @@ description = "Stokes flow in terrain-following coordinates"
 authors = [
     {name = "Daniel Shapero", email = "shapero@uw.edu"}
 ]
+dependencies = [
+    "irksome @ git+https://github.com/firedrakeproject/Irksome@26944f4469254691dad539df6309ea40a9ba1e34"
+]
 
 [build-system]
 requires = ["setuptools"]
