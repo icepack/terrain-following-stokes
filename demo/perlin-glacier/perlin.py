@@ -76,7 +76,8 @@ z.sub(2).assign(h_initial)
 # Initial momentum solve
 u, p, h = firedrake.split(z)
 params = {
-    "gravity": constants["density"] * constants["gravity"],
+    "density": constants["density"],
+    "gravity": constants["gravity"],
     "penalty": 2 * degree * (degree + 1),
     "viscosity": constants["viscosity"],
 }

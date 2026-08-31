@@ -11,7 +11,7 @@ from zetastokes import cartesian, terrain_following
 
 
 lx = 5.0
-constants = {"viscosity": 1.0, "gravity": 9.81}
+constants = {"viscosity": 1.0, "density": 1.0, "gravity": 9.81}
 fcparams = {"quadrature_degree": 8}
 sparams = {"pc_type": "lu", "pc_factor_mat_solver_type": "mumps"}
 

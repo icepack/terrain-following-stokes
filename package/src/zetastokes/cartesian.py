@@ -26,8 +26,8 @@ def _get_fields(**kwargs):
 def cell_free_energy_rate(**kwargs):
     u, p, ε, τ, _, mesh = _get_fields(**kwargs)
 
-    g = kwargs["gravity"]
-    f = Constant((0,) * (mesh.geometric_dimension - 1) + (-g,))
+    ρ, g = map(kwargs.get, ["density", "gravity"])
+    f = firedrake.as_vector([0] * (mesh.geometric_dimension - 1) + [-ρ * g])
 
     if kwargs.get("form", "primal") == "primal":
         return (0.5 * inner(τ, ε) - p * div(u) - inner(f, u)) * dx
