@@ -7,7 +7,6 @@ from .common import boundary_measure, get_test_function
 from ufl.domain import extract_unique_domain
 
 
-
 def coordinate_transformation_derivatives(b, h):
     mesh = extract_unique_domain(b) or extract_unique_domain(h)
     d = mesh.geometric_dimension
@@ -97,14 +96,41 @@ def free_energy_rate(**kwargs):
     return G_cells - G_facets
 
 
-def mass_balance(**kwargs):
+def thickness_equation(**kwargs):
     h = kwargs["thickness"]
     u = kwargs["velocity"]
     mesh = extract_unique_domain(h)
     n = firedrake.FacetNormal(mesh)
     φ = get_test_function(h)
-    F_cells = (Dt(h) * φ - inner(h * u, grad(φ))) * dx
+    F = (Dt(h) * φ - inner(h * u, grad(φ))) * dx
     u_n = firedrake.max_value(0, inner(u, n))
-    ds = boundary_measure([1, 2])
-    F_outflow = h * u_n * φ * ds
-    return F_cells + F_outflow
+
+    if (outflow_ids := kwargs.get("outflow_ids")):
+        ds = boundary_measure(outflow_ids)
+        F += h * u_n * φ * ds
+
+    return F
+
+
+def density_equation(**kwargs):
+    field_names = ["density", "thickness", "velocity"]
+    ρ, h, u = map(kwargs.get, field_names)
+
+    mesh = extract_unique_domain(ρ)
+    dim = mesh.geometric_dimension
+    n = firedrake.FacetNormal(mesh)
+
+    v = Constant([0] * dim)
+    if kwargs.get("frame", True):
+        ζ = firedrake.SpatialCoordinate(mesh)[dim - 1]
+        v = firedrake.as_vector([0] * (dim - 1) + [ζ * Dt(h)])
+
+    φ = get_test_function(ρ)
+    F_cells = (Dt(h * ρ) * φ - h * ρ * inner(u, grad(φ))) * dx
+    F_frame = ρ * inner(v, grad(φ)) * dx
+
+    dS = dS_h + dS_v
+    f = ρ * firedrake.max_value(0, inner(h * u - v, n))
+    F_facets = jump(f) * jump(φ) * dS
+
+    return F_cells + F_frame + F_facets

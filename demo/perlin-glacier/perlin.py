@@ -8,7 +8,7 @@ import firedrake
 from firedrake import Constant, derivative, inner, dx, ds_b
 from ufl.algorithms import expand_derivatives
 import irksome
-from zetastokes import terrain_following
+from zetastokes.terrain_following import free_energy_rate, thickness_equation
 import noise
 
 
@@ -86,7 +86,7 @@ boundary_data = {"dirichlet_ids": [1, 2], "robin_ids": ["bottom"]}
 C = Constant(constants["friction"])
 n = firedrake.FacetNormal(mesh)
 G = (
-    terrain_following.free_energy_rate(**fields, **params, **boundary_data) +
+    free_energy_rate(**fields, **params, **boundary_data) +
     0.5 * C * inner(u, u) * ds_b
 )
 
@@ -117,7 +117,7 @@ u_max = np.abs(u.dat.data_ro).max()
 cfl_time = δx / u_max
 print(f"CFL time: {cfl_time} years")
 
-F_mass = terrain_following.mass_balance(**fields) - a * φ * dx
+F_mass = thickness_equation(**fields, outflow_ids=[1, 2]) - a * φ * dx
 F = F_momentum + F_mass
 
 lower, upper = firedrake.Function(Z), firedrake.Function(Z)

@@ -2,8 +2,9 @@ import firedrake
 from firedrake import (
     Constant, inner, outer, sym, grad, div, dx, avg, jump, dS_h, dS_v,
 )
-import ufl
-from .common import boundary_measure
+from irksome import Dt
+from .common import boundary_measure, get_test_function
+from ufl.domain import extract_unique_domain
 
 
 def _get_fields(**kwargs):
@@ -17,7 +18,7 @@ def _get_fields(**kwargs):
     else:
         τ = kwargs["stress"]
 
-    mesh = ufl.domain.extract_unique_domain(u)
+    mesh = extract_unique_domain(u)
     n = firedrake.FacetNormal(mesh)
 
     return u, p, ε, τ, n, mesh
@@ -69,3 +70,25 @@ def free_energy_rate(**kwargs):
     if kwargs.get("form", "primal") == "primal":
         return G_cells + G_facets
     return G_cells - G_facets
+
+
+def density_equation(**kwargs):
+    field_names = ["density", "velocity"]
+    ρ, u = map(kwargs.get, field_names)
+
+    mesh = extract_unique_domain(ρ)
+    dim = mesh.geometric_dimension
+    n = firedrake.FacetNormal(mesh)
+
+    v = Constant([0] * dim)
+    if kwargs.get("frame", True):
+        raise NotImplementedError("IOU 1 PDE")
+
+    φ = get_test_function(ρ)
+    F_cells = (Dt(ρ) * φ - ρ * inner(u, grad(φ))) * dx
+
+    dS = dS_h + dS_v
+    f = ρ * firedrake.max_value(0, inner(u - v, n))
+    F_facets = jump(f) * jump(φ) * dS
+
+    return F_cells + F_facets

@@ -88,7 +88,7 @@ G = terrain_following.free_energy_rate(**fields, **params, **boundary_data)
 
 v, q, φ = firedrake.TestFunctions(Z)
 F_momentum = expand_derivatives(derivative(G, u, v) + derivative(G, p, q))
-F_mass = terrain_following.mass_balance(**fields)
+F_mass = terrain_following.thickness_equation(**fields)
 F = F_momentum + F_mass
 
 # Do an initial solve of the momentum balance equation by itself in order to

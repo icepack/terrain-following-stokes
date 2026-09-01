@@ -6,7 +6,8 @@ authors = [
     {name = "Daniel Shapero", email = "shapero@uw.edu"}
 ]
 dependencies = [
-    "irksome @ git+https://github.com/firedrakeproject/Irksome@26944f4469254691dad539df6309ea40a9ba1e34"
+    "irksome @ git+https://github.com/firedrakeproject/Irksome@26944f4469254691dad539df6309ea40a9ba1e34",
+    "tqdm",
 ]
 
 [build-system]
