@@ -83,7 +83,7 @@ def facet_free_energy_rate(**kwargs):
 
     if "robin_ids" in kwargs:
         ds = boundary_measure(kwargs["robin_ids"])
-        power += (-inner(τ, outer(ν, ν)) + p) * inner(u, n) * h * ds
+        power += (-inner(τ, outer(n, n)) + p) * inner(u, n) * h * ds
         penalty += α * μ / (2 * γ) * inner(u, n)**2 * h * ds
 
     return power + penalty
