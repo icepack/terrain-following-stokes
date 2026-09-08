@@ -683,6 +683,40 @@ Solving the fully-coupled system of both mass and momentum balance equations req
 Try it with Radau-IIA.
 Reimplement using the conventional scheme, maybe with FSSA.}
 
+\subsection{Rayleigh-Taylor instability}
+
+\begin{figure}
+    \begin{center}
+        \includegraphics[width=0.8\linewidth]{demo/rayleigh-taylor/rayleigh-taylor-density.png}
+    \end{center}
+    \caption{Density at the start and at the end of the simulation.
+    A higher-density fluid above a lower-density fluid is gravitationally unstable.}
+    \label{fig:rayleigh-taylor}
+\end{figure}
+
+We implemented the Rayleigh-Taylor instability test case from \citet{kaus2010stabilization}.
+The initial domain is a box of length $L$ and height $H$, both equal to 500 km.
+An interface divides the domain into two regions of higher density above and lower density below.
+The interface sits at an elevation
+\begin{equation}
+    z = z_0 + \delta z\cdot \sin(\pi x / L)
+\end{equation}
+where $z_0$ = 400 km and $\delta z$ = 10 km.
+The material below the interface has a density of 3200 kg/m${}^3$ and the material above has a density 100 kg/m${}^3$ higher.
+The viscosity is 10${}^{20}$ Pa$\cdot$s, but for numerical stability we use units of gigapascals, kilometers, and millennia (ka).
+\citet{kaus2010stabilization} found that the unstabilized simulation would converge with a timestep of 2.5 ka but exhibited the drunken sailor instability at a timestep of 5 ka.
+Their stabilized scheme converged with timesteps up to 50 ka.
+We used a monolithic backward Euler scheme which solves simultaneously for velocity, pressure, density, and thickness.
+We used piecewise constant finite elements for the density with the upwind numerical flux.
+Our convergence criterion was that the residual was reduced by a factor of 10${}^{-8}$.
+This scheme converged with a timestep of 5 ka and required two Newton iterations for every step.
+The scheme also converged with a timestep of 50 ka and required one additional Newton iteration per step.
+
+The main failure mode in implementing this simulation was non-convergence due to poor scaling of the different components of the residual.
+The fix for this problem is making a good choice of units.
+
+\textcolor{red}{TODO: DQ${}_1$ density, Radau-IIA, longer duration}
+
 
 % ------------------
 \section{Discussion}
