@@ -22,7 +22,7 @@ constants = {
     "density": 3.2e3,                                # kg / meter^3
     "delta_density": 100,
     "gravity": 9.81 / 1e9 * 1e3,                     # so ρg is in GPa / km
-    "final_time": 800,                               # millennia
+    "final_time": 3200,                              # millennia
 }
 
 
@@ -34,7 +34,6 @@ sparams = {
         "mat_mumps_icntl_14": 100,
         "snes_stol": 0.0,
         "snes_monitor": None,
-        "snes_linesearch_monitor": None,
     },
 }
 
@@ -65,7 +64,7 @@ r = firedrake.FiniteElement("R", "interval", 0)
 h_element = firedrake.TensorProductElement(cg1, r)
 H = firedrake.FunctionSpace(mesh, h_element)
 
-ρ_element = firedrake.FiniteElement("DQ", "quadrilateral", 0)
+ρ_element = firedrake.FiniteElement("DQ", "quadrilateral", 1)
 R = firedrake.FunctionSpace(mesh, ρ_element)
 x, ζ = firedrake.SpatialCoordinate(mesh)
 z = Constant(constants["thickness"]) * ζ

@@ -63,7 +63,7 @@
 \newcommand{\Id}[1]{\operatorname{Id} #1}
 
 \title{Simulating the flow of viscous, incompressible fluids with a free surface using terrain-following coordinates}
-\author{Daniel R. Shapero, Emily Wilbur, Pablo Brubeck}
+\author{Daniel R. Shapero, ...TBD}
 \date{}
 
 \begin{document}
@@ -706,16 +706,19 @@ The material below the interface has a density of 3200 kg/m${}^3$ and the materi
 The viscosity is 10${}^{20}$ Pa$\cdot$s, but for numerical stability we use units of gigapascals, kilometers, and millennia (ka).
 \citet{kaus2010stabilization} found that the unstabilized simulation would converge with a timestep of 2.5 ka but exhibited the drunken sailor instability at a timestep of 5 ka.
 Their stabilized scheme converged with timesteps up to 50 ka.
-We used a monolithic backward Euler scheme which solves simultaneously for velocity, pressure, density, and thickness.
-We used piecewise constant finite elements for the density with the upwind numerical flux.
+We used a monolithic backward Euler scheme which solves simultaneously for velocity, pressure, density, and thickness and ran the simulation for 2400 ka of model time.
+We used both DQ${}_0$ and DQ${}_1$ finite elements for the density with the upwind numerical flux.
+The results show the expect sinking of the heavier fluid.
+The maximum displacement of the free surface was roughly 2 km.
+
 Our convergence criterion was that the residual was reduced by a factor of 10${}^{-8}$.
-This scheme converged with a timestep of 5 ka and required two Newton iterations for every step.
-The scheme also converged with a timestep of 50 ka and required one additional Newton iteration per step.
+This scheme converged with a timestep of 5 ka and required two Newton iterations for almost all steps \textcolor{red}{TODO get the exact numbers}.
+The scheme also converged with a timestep of 50 ka with only one additional Newton iteration per step.
 
 The main failure mode in implementing this simulation was non-convergence due to poor scaling of the different components of the residual.
 The fix for this problem is making a good choice of units.
 
-\textcolor{red}{TODO: DQ${}_1$ density, Radau-IIA, longer duration}
+\textcolor{red}{TODO: Radau-IIA}
 
 
 % ------------------
