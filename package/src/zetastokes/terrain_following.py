@@ -63,7 +63,7 @@ def facet_free_energy_rate(**kwargs):
 
     α = Constant(kwargs.get("penalty", 100.0))
     μ = Constant(kwargs["viscosity"])
-    γ = firedrake.CellSize(mesh)
+    γ = firedrake.CellVolume(mesh) / firedrake.FacetArea(mesh)
 
     ν = dot(n, J_inv)
     u_n = outer(dot(J, u), ν)
@@ -73,16 +73,17 @@ def facet_free_energy_rate(**kwargs):
     # TODO: Try alternative forms for this
     dS = dS_h + dS_v
     power = (-inner(avg(h * τ), δu_n) + avg(p) * jump(h * u, n)) * dS
-    penalty = α * μ / (2 * avg(γ)) * inner(δu, δu) * avg(h) * dS
+    penalty = α * μ / 2 * avg(h * inner(ν, ν) / γ) * inner(δu, δu) * dS
 
     if "dirichlet_ids" in kwargs:
         ds = boundary_measure(kwargs["dirichlet_ids"])
         power += (-inner(τ, u_n) + p * inner(u, n)) * h * ds
-        penalty += α * μ / (2 * γ) * inner(dot(J, u), dot(J, u)) * h * ds
+        penalty += α * μ / (2 * γ) * inner(ν, ν) * inner(dot(J, u), dot(J, u)) * h * ds
 
     if "robin_ids" in kwargs:
         ds = boundary_measure(kwargs["robin_ids"])
-        power += (-inner(τ, outer(n, n)) + p) * inner(u, n) * h * ds
+        τ_nn = inner(τ, outer(ν, ν)) / inner(ν, ν)
+        power += (-τ_nn + p) * inner(u, n) * h * ds
         penalty += α * μ / (2 * γ) * inner(u, n)**2 * h * ds
 
     return power + penalty
