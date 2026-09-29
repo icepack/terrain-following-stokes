@@ -78,7 +78,7 @@ u, p, h = firedrake.split(z)
 params = {
     "density": constants["density"],
     "gravity": constants["gravity"],
-    "penalty": 2 * degree * (degree + 1),
+    "penalty": 4 * (degree + 1) ** 2,
     "viscosity": constants["viscosity"],
 }
 fields = {"velocity": u, "pressure": p, "thickness": h, "bed": b}
