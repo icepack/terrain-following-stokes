@@ -5,10 +5,12 @@ import numpy as np
 from scipy.interpolate import CubicHermiteSpline
 import tqdm
 import firedrake
-from firedrake import Constant, derivative, inner, dx, ds_b
+from firedrake import Constant, derivative, inner, dot, dx, ds_b
 from ufl.algorithms import expand_derivatives
 import irksome
-from zetastokes.terrain_following import free_energy_rate, thickness_equation
+from zetastokes.terrain_following import (
+    free_energy_rate, thickness_equation, coordinate_transformation_derivatives
+)
 import noise
 
 
@@ -84,10 +86,10 @@ params = {
 fields = {"velocity": u, "pressure": p, "thickness": h, "bed": b}
 boundary_data = {"dirichlet_ids": [1, 2], "robin_ids": ["bottom"]}
 C = Constant(constants["friction"])
-n = firedrake.FacetNormal(mesh)
+J, _ = coordinate_transformation_derivatives(b, h)
 G = (
     free_energy_rate(**fields, **params, **boundary_data) +
-    0.5 * C * inner(u, u) * ds_b
+    0.5 * C * inner(dot(J, u), dot(J, u)) * ds_b
 )
 
 v, q, φ = firedrake.TestFunctions(Z)
