@@ -192,9 +192,9 @@ def tfc_to_xyz(
 
     # Create the Cartesian velocity, defined on the terrain-following mesh
     mesh_tfc = ufl.domain.extract_unique_domain(u)
-    x, ζ = firedrake.SpatialCoordinate(mesh_tfc)
+    x, _ = firedrake.SpatialCoordinate(mesh_tfc)
     b, h = coords.topography(x / Constant(coords.length))
-    J, J_inv = terrain_following.coordinate_transformation_derivatives(b, h)
+    J, _ = terrain_following.coordinate_transformation_derivatives(b, h)
     V_dg = firedrake.VectorFunctionSpace(mesh_tfc, u_elt)
     Ju = Function(V_dg).project(dot(J, u))
 

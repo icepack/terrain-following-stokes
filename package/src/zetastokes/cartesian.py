@@ -3,7 +3,7 @@ from firedrake import (
     Constant, inner, outer, sym, grad, div, dx, avg, jump, dS_h, dS_v,
 )
 from irksome import Dt
-from .common import boundary_measure, get_test_function
+from .common import horizontal_ds as ds_h, vertical_ds as ds_v, get_test_function
 from ufl.domain import extract_unique_domain
 
 
@@ -51,15 +51,15 @@ def facet_free_energy_rate(**kwargs):
     power = (-inner(avg(τ), u_n("+") + u_n("-")) + avg(p) * jump(u, n)) * dS
     penalty = α * μ / (2 * avg(γ)) * inner(jump(u), jump(u)) * dS
 
-    if "dirichlet_ids" in kwargs:
-        ds_dirichlet = boundary_measure(kwargs["dirichlet_ids"])
-        power += (-inner(τ, u_n) + p * inner(u, n)) * ds_dirichlet
-        penalty += α * μ / (2 * γ) * inner(u, u) * ds_dirichlet
+    dirichlet_ids = kwargs.get("dirichlet_ids", ())
+    ds_d = ds_h(dirichlet_ids) + ds_v(dirichlet_ids)
+    power += (-inner(τ, u_n) + p * inner(u, n)) * ds_d
+    penalty += α * μ / (2 * γ) * inner(u, u) * ds_d
 
-    if "robin_ids" in kwargs:
-        ds_robin = boundary_measure(kwargs["robin_ids"])
-        power += (-inner(τ, outer(n, n)) + p) * inner(u, n) * ds_robin
-        penalty += α * μ / (2 * γ) * inner(u, n)**2 * ds_robin
+    robin_ids = kwargs.get("robin_ids", ())
+    ds_r = ds_h(robin_ids) + ds_v(robin_ids)
+    power += (-inner(τ, outer(n, n)) + p) * inner(u, n) * ds_r
+    penalty += α * μ / (2 * γ) * inner(u, n)**2 * ds_r
 
     return power + penalty
 
