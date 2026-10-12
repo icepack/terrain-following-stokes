@@ -22,6 +22,7 @@
 \usepackage{natbib}
 \usepackage[makeroom]{cancel}
 \usepackage[only,llbracket,rrbracket]{stmaryrd}
+\usepackage{xfrac}
 
 \usepackage{upgreek}
 \usepackage[utf8]{inputenc}
@@ -39,6 +40,7 @@
     {μ}{{\ensuremath{\upmu}}}1
     {α}{{\ensuremath{\upalpha}}}1
     {γ}{{\ensuremath{\upgamma}}}1
+    {λ}{{\ensuremath{\uplambda}}}1
 }
 
 %\linenumbers
@@ -88,10 +90,10 @@ Our main contribution is to show how this challenge can be overcome using discon
 
 Our goal in this paper is to describe techniques for simulating the flow of thin fluid films over variable topography at low Reynolds number with applications to glaciology and geodynamics.
 When the surface of the fluid is free to move up and down, the geometry of the problem is changing in time.
-This feature introduces additional difficulties that are not present when doing computational fluid dynamics in a fixed geometry.
-In atmospheric science and oceanography, a common remedy for this problem is to use \emph{terrain-following coordinates} \citep{gal1975use}.
+Simulations in an evolving geometry are harder than in a fixed geometry.
+In atmospheric science and oceanography, a common remedy is to use \emph{terrain-following coordinates} \citep{gal1975use}.
 This coordinate system uses a non-dimensional vertical coordinate $\zeta$ which takes values between 0 and 1.
-We can then compute the physical elevation in Cartesian coordinates as
+The physical elevation in Cartesian coordinates is
 \begin{equation}
     z = b(x, y) + \zeta \cdot h(x, y, t)
 \end{equation}
@@ -100,7 +102,7 @@ See Figure \ref{fig:tfc-vs-xyz} for an illustration.
 We assume that the fluid film thickness can change in time but that the bottom topography is fixed.
 When using Cartesian coordinates, the computational grid has to be deformed to the surface and bottom topography.
 This results in more complicated formulas to discretize a conservation law.
-The tradeoff in using terrain-following coordinates is that the computational grid is regular, but now there are warping terms that have to go into the equations of motion.
+In terrain-following coordinates, the grid is regular, but now there are warping terms in the equations of motion.
 
 \begin{figure}
     \begin{center}
@@ -125,26 +127,26 @@ In this work, we will always solve for the intrinsic, contravariant components o
 We argue that this has certain conceptual advantages.
 But we emphasize that the representation is a modeling choice.
 
-Several papers use Riemannian geometry and covariant derivatives to describe the form that the equations of motion take in terrain-following coordinates.
+Several papers use Riemannian geometry to describe the equations of motion in general coordinate systems.
 The seminal paper of \citet{gal1975use} adopts this approach.
 This viewpoint replaces the Euclidean inner product with a metric tensor $g_{ij}(x)$.
 The metric tensor tells us how to calculate inner products between direction vectors at the point $x$.
-The metric tensor has to be symmetric and positive definite and, unlike the Euclidean inner product, varies in space.
+The metric tensor has to be symmetric and positive definite.
+Unlike the Euclidean inner product, it can vary in space.
 We can then compute the Christoffel (``Christ-awful'') symbols for this metric, which allows us to derive expressions for the gradient, divergence, and curl.
 
-There is a major problem with adopting Riemannian geometry if we want to use certain numerical methods.
+There is a major problem with adopting Riemannian geometry when using the finite element method.
 The metric tensor depends on the slope of the bed and surface.
 But our goal was to describe fluid films with a free surface.
 The free surface evolution law is a hyperbolic partial differential equation.
-Suppose that we discretize this equation using continuous piecewise-polynomial basis functions.
+Suppose we discretize this equation using continuous Galerkin basis functions.
 Then the slope field jumps at cell boundaries, and as a consequence the metric tensor does too.
-Now the gradient and divergence operators in curvilinear coordinates involve the Christoffel symbols for the metric.
-The Christoffel symbols are defined as certain derivatives of the metric tensor.
-The metric tensor is not even continuous, much less differentiable.
+The gradient and divergence operators in curvilinear coordinates involve the Christoffel symbols, which are defined as certain combinations of derivatives of the metric tensor.
+But the metric tensor is not even continuous, much less differentiable.
 Using terrain-following coordinates and finite elements might then appear doomed.
 
 The alternative approach that we adopt here is to use a curvilinear coordinate system while avoiding Riemannian geometry.
-Instead of working with the metric tensor and the Christoffel symbols, we rely on the linearization $J$ of the map from terrain-following to Cartesian coordinates and its inverse.
+Instead of working with the metric tensor, we rely on the linearization $J$ of the map from terrain-following to Cartesian coordinates and its inverse.
 The matrix $J$ is also discontinuous across cell boundaries, and it appears under a gradient operator.
 At first blush, it might seem that this approach too is doomed to fail for the same reason as using Riemannian geometry.
 In this case, however, we can salvage the wreck using discontinuous Galerkin methods.
@@ -168,6 +170,12 @@ This is summed up in its entirety in equation \eqref{eq:sipdg-stokes-tfc}, which
 To our knowledge, this equation has not appeared in the glaciology or geodynamics literature before.
 An important consequence is that we can solve the coupled mass and momentum balance equations all at once without recourse to operator splitting.
 
+We lean heavily on discontinuous Galerkin methods in this paper.
+These schemes are very well-studied in the applied mathematics literature.
+But their broad diffusion into other disciplines in science and engineering is still uneven.
+For this reason, we aim to cover the details at a lower level than is strictly necessary.
+We refer to \citet{di2011mathematical} for further reading.
+
 
 % ------------------
 \section{Background}
@@ -175,9 +183,53 @@ An important consequence is that we can solve the coupled mass and momentum bala
 Here we review the Stokes equations in Cartesian coordinates and how to discretize them with interior penalty methods.
 The interior penalty method will prove indispensible when we switch from Cartesian to terrain-following coordinates.
 
+\subsection{Notation}
+
+The spatial domain will always be denoted $\Omega$.
+The main field to be solved for is the velocity vector $u$.
+When we have to specify whether we are working with the components of the velocity vector in Cartesian vs. terrain-following coordinates, we will write this as $u_x$ and $u_\xi$ respectively.
+We will drop the subscripts where it should be clear from context.
+A generic cell of the computational mesh that discretizes the domain will be written as $\omega$ and a facet of a cell as $\gamma$.
+Likewise, we will write the elements of volume and surface area as $\mathrm d\omega$ and $\mathrm d\gamma$ respectively.
+When we need to distinguish between the element of volume in the Cartesian or the terrain-following coordinate frame, we will write these as $\mathrm d\omega_x$, $\mathrm d\omega_\xi$ and likewise for area.
+
+We will write the norm of a vector $v$ as $|v|$ and likewise the norm of a rank-2 tensor.
+We will denote the inner product between two tensors with a colon, i.e. given two tensors $A$, $B$,
+\begin{equation}
+    A : B = \sum_{i,j}A_{ij}B_{ij}.
+\end{equation}
+We will also denote the volume of a cell $\omega$ as $|\omega|$ and likewise the area of a facet.
+
+When integrating over a facet $\gamma$ in the interior of the mesh, we often need to refer to averages of some scalar, vector, or tensor quantity across both of the cells $\omega_+$, $\omega_-$ that contain $\gamma$.
+Given some field $\phi$, we denote $\phi_+$, $\phi_-$ as the limiting values of $\phi$ as it approaches the facet $\gamma$ from the $\omega_+$ and $\omega_-$ sides respectively.
+We do not anticipate that $\phi$ is continuous and so these limiting values can be different.
+We use angle brackets to denote an average across a facet:
+\begin{equation}
+    \langle\phi\rangle = \frac{\phi_+ + \phi_-}{2}.
+\end{equation}
+To express DG methods, we will also need the jump of some quantity across a facet.
+The jump is written with square brackets.
+The jump of a scalar or vector quantity can be defined as the difference in values:
+\begin{equation}
+    [\phi] = \phi_+ - \phi_-.
+\end{equation}
+But we will also need a jump that is weighted by the outward-pointing normal vector $n$.
+Note that the outward-pointing normal vector to $\omega_+$ has the opposite sign as the outward-pointing normal to its neighboring cell $n_-$.
+In other words, $n_- = -n_+$.
+The jump of a term weighted by the normal vector is
+\begin{equation}
+    [\phi\otimes n] = \phi_+\otimes n_+ + \phi_-\otimes n_-
+\end{equation}
+where $\otimes$ denotes the outer product of tensors.
+In other words, the normal-weighted jump is always one rank higher than its argument (a scalar maps to a vector, a vector to a tensor, etc.).
+Note how we add the two terms instead of subtracting them because the sign flip is implicit in the normal vector.
+
+
+\subsection{The Stokes equations}
+
 The incompressible Stokes equations can be derived through minimization of the free energy dissipation rate
 \begin{equation}
-    G(u, p) = \int_\Omega\left\{\frac{1}{2}\tau :\dot\varepsilon - p\nabla\cdot u - f\cdot u\right\}\mathrm dx
+    G(u, p) = \int_\Omega\left\{\frac{1}{2}\tau :\dot\varepsilon - p\nabla\cdot u - f\cdot u\right\}\mathrm d\omega
 \end{equation}
 where $\dot\varepsilon = \frac{1}{2}(\nabla u + \nabla u^*)$ is the rate of strain tensor and $\tau = 2\mu\dot\varepsilon$ is the deviatoric stress tensor.
 We will use the minimization form in the following because it requires fewer characters to type.
@@ -198,50 +250,75 @@ def free_energy_rate(u, p, f):
     return (0.5 * inner(τ, ε) - p * div(u) - inner(f, u)) * dx
 
 
-def free_energy_rate_dg(u, p, f, α):
+def free_energy_rate_facets(u, p, α):
     n = firedrake.FacetNormal(mesh)
-    γ = avg(firedrake.CellSize(mesh))
+    λ = firedrake.CellVolume(mesh) / firedrake.FacetArea(mesh)
     dim = u.ufl_shape[0]
     I = firedrake.Identity(dim)
     ε, τ = stress_strain_rate(u)
     u_n = outer(u, n)
-    G_flux = -inner(avg(τ - p * I), u_n("+") + u_n("-")) * dS
-    G_penalty = α * μ / (2 * avg(γ)) * inner(jump(u), jump(u)) * dS
+    G_flux = -inner(avg(τ - p * I), u_n('-') + u_n('-')) * dS
+    G_penalty = α * μ / (2 * avg(λ)) * inner(jump(u), jump(u)) * dS
 
-    return free_energy_rate(u, p, f) + G_flux + G_penalty
+    return G_flux + G_penalty
 \end{lstlisting}
 \caption{Source code to produce the free energy dissipation rate for the Stokes equations in Cartesian coordinates using both conforming and non-conforming finite elements.}
 \label{fig:source-code-xyz}
 \end{figure}
 
 The description above requires boundary conditions to be complete.
-We will concern ourselves with two types of boundary conditions.
-First, we can prescribe the boundary traction by adding a term to the free energy rate:
+The most common boundary condition is to fix the the velocity to some externally-imposed value $u_\Gamma$, i.e. a Dirichlet boundary condition.
+The conventional way to impose Dirichlet boundary conditions is to change rows of the system matrix and right-hand side in order to force the boundary degrees of freedom to take the desired boundary values.
+We can also fix the normal stress at the boundary (a Neumann boundary condition) by adding another term to the variational form.
+For example, the top surface of the fluid is usually assumed to be stress-free, in which case we do nothing at all.
+For some fluid flow problems we want to prescribe the friction along the boundary.
+Friction boundary conditions are a mixture of two different types in the normal and tangential directions.
+The velocity in the normal direction is set to some fixed value $\dot m$, which is usually but not always zero:
 \begin{equation}
-    \ldots - \int_\Gamma \tau_\Gamma : n\otimes u\,\mathrm d\gamma.
+    u\cdot n = \dot m
+    \label{eq:normal-flow-bc}
 \end{equation}
-We might instead want to fix the value of the velocity to some externally-imposed $u_\Gamma$.
-The conventional approach for fixing boundary values is to modify the linear system at the time of solution.
-
-Nitsche's method is a way to instead enforce Dirichlet conditions by modifying the variational form.
-One way of looking at Nitsche's method is as an augmented Lagrangian scheme together with an exact solution for the Lagrange multipliers.
-The Nitsche functional is
+In the tangential direction, the traction is proportional to the slip velocity:
 \begin{equation}
-    G_\alpha(u, p) = G(u, p) - \int_\Gamma(\tau - pI) : n\otimes(u - u_\Gamma)\mathrm d\gamma + \int_\Gamma\frac{\alpha\mu}{2\ell}|u - u_\Gamma|^2\mathrm d\gamma.
+    (I - n\otimes n)\tau = -\kappa(I - n\otimes n)u.
 \end{equation}
-Here $\ell$ is a measure of the local facet diameter and $\alpha$ is a constant related to the mesh regularity.
+Here the matrix $I - n\otimes n$ projects a vector onto the plane tangent to the surface.
 
-The symmetric interior penalty discontinuous Galerkin (SIPDG) method is what we get when we apply Nitsche's method to every cell $\omega$ of the mesh:
+\subsection{Discontinuous Galerkin discretization}
+
+The conventional way to enforce Dirichlet boundary conditions is to modify the linear system of equations to be solved.
+Nitsche's method is a way to enforce boundary conditions by instead modifying the variational form.
+One way of looking at Nitsche's method is as an augmented Lagrangian scheme together with an exact solution for the Lagrange multipliers \citep{stenberg1995some}.
+The Nitsche-modified functional is
+\begin{equation}
+    G_\alpha(u, p) = G(u, p) - \int_\Gamma(\tau - pI) : n\otimes(u - u_\Gamma)\mathrm d\gamma + \int_\Gamma\frac{\alpha\mu}{2\lambda}|u - u_\Gamma|^2\mathrm d\gamma.
+\end{equation}
+Here $\lambda$ is a measure of the local facet diameter and $\alpha$ is a dimensionless constant related to the mesh regularity.
+The integrals are over all mesh facets that are contained in the segment $\Gamma$ of the domain boundary where the velocity should be fixed to $u_\Gamma$.
+
+It is not possible to satisfy the normal-flow condition \eqref{eq:normal-flow-bc} exactly when using continuous Galerkin finite elements for the velocity on a curved surface.
+The velocity has degrees of freedom at the vertices, while the normal is defined on facets and not even well-defined at vertices.
+The conventional approach of modifying degrees of freedom is not available for this type of boundary condition.
+We can also use Nitsche's method to enforce the normal-flow condition approximately:
+\begin{equation}
+    G_\alpha(u, p) = G(u, p) - \int_\Gamma n\cdot(\tau - pI)n\,(u\cdot n)\mathrm d\gamma + \int_\Gamma\frac{\alpha\mu}{2\lambda}(u\cdot n)^2\mathrm d\gamma + \int_\Gamma\frac{\kappa}{2}|(I - n\otimes n)u|^2\mathrm d\gamma
+\end{equation}
+where $\kappa$ is the friction coefficient \citep{freund1995weakly, cheng2020full}.
+
+The discussion above assumes that we are using conventional finite element bases, which are continuous across cell boundaries.
+When we switch to terrain-following coordinates, we will have to use a scheme that works even when the basis functions are not continuous.
+These schemes are called \emph{discontinuous Galerkin} (DG) methods.
+To be consistent with the ideal problem, a DG method has to recover continuity in the limit as the mesh is refined.
+The \emph{symmetric interior penalty} discontinuous Galerkin (SIPDG) method is one type of scheme that provably achieves this goal.
+
+There are several ways to derive SIPDG schemes.
+One approach is to apply Nitsche's method to every cell $\omega$ of the mesh.
+Where Nitsche's method was originally created in order to impose Dirichlet boundary conditions on the outer boundary of the whole domain, the SIPDG method instead uses the same idea but to enforce continuity.
+Leaving aside any boundary conditions for now, the objective functional we extremize is:
 \begin{align}
-    & G_\alpha(u, p) = \sum_\omega\int_\omega\left\{\frac{1}{2}\tau:\dot\varepsilon - p\nabla\cdot u - f\cdot u\right\}\mathrm dx \nonumber \\
-    & \qquad - \sum_\gamma\int_\gamma \left\langle\tau - pI \right\rangle: [u\otimes n]\,\mathrm d\gamma + \sum_\gamma\int_\gamma\frac{\alpha\mu}{2|\gamma|}|[u]|^2\mathrm d\gamma \label{eq:sipdg-stokes-xyz}
+    & G_\alpha(u, p) = \sum_\omega\int_\omega\left\{\frac{1}{2}\tau:\dot\varepsilon - p\nabla\cdot u - f\cdot u\right\}\mathrm d\omega \nonumber \\
+    & \qquad - \sum_\gamma\int_\gamma \left\langle\tau - pI \right\rangle: [u\otimes n]\,\mathrm d\gamma + \sum_\gamma\int_\gamma\frac{\alpha\mu}{2\lambda}|[u]|^2\mathrm d\gamma. \label{eq:sipdg-stokes-xyz}
 \end{align}
-where $\langle\cdot\rangle$ denotes the average across a face and $[\cdot]$ denotes the jump.
-To be completely explicit, the jump of the velocity is
-\begin{equation}
-    [u\otimes n] = u_+\otimes n_+ + u_-\otimes n_-
-\end{equation}
-where the ``$+$'' and ``$-$'' denote each side of the facet $\gamma$ that the jump is evaluated on.
 With DG methods, we can use finite element bases that do not meet the continuity requirements of the problem.
 This feature is sometimes an advantage.
 Continuity and differentiability are recovered in the limit as the mesh is refined.
@@ -249,15 +326,15 @@ We can catch potential errors in the variational form by remembering that the DG
 Figure \ref{fig:source-code-xyz} shows the source code for producing the free energy rate in Cartesian coordinates for both conforming and non-conforming elements.
 Although we have described the IPDG method via Nitsche's method, we can arrive at the same discretization from a conservation law with an appropriate choice of numerical flux \citep{cockburn2002local}.
 
-We can also consider a formulation of the Stokes problem where the stress tensor is an additional unknown.
-While more expensive, it is necessary to explicitly include the stress in order to simulate non-Newtonian fluid flows when the constitutive relation is implicit \citep{farrell2020numerical}.
+We can also consider a form of the Stokes problem where the stress tensor is an additional unknown.
+This three-field form is more expensive, but it is the only solution when the constitutive relation is implicit \citep{farrell2020numerical}.
 Here our focus is on Newtonian fluids, but as we will see below, the velocity-pressure-stress form has advantages even in the Newtonian case when using terrain-following coordinates.
-The velocity-pressure-stress form of the Stokes equations can also be derived from a minimization principle.
-The complementary free energy dissipation rate is just the convex conjugate of the original primal form.
+The three-field form of the Stokes problem also has a minimization principle.
+The free energy dissipation rate is just the convex conjugate of the original primal form.
 This gives us the analogue of equation \eqref{eq:sipdg-stokes-tfc}:
 \begin{align}
-    G_\alpha^*(u, p, \tau) & = \int_\Omega\left\{\frac{1}{4\mu}|\tau|^2 - \tau :\dot\varepsilon(u) + p\nabla\cdot u + f\cdot u\right\}\mathrm dx \nonumber \\
-    & \qquad + \sum_\gamma\int_\gamma \left\langle\tau - pI \right\rangle: [u\otimes n]\,\mathrm d\gamma - \sum_\gamma\int_\gamma\frac{\alpha\mu}{2|\gamma|}|[u]|^2\mathrm d\gamma \label{eq:sipdg-stokes-dual-xyz}
+    G_\alpha^*(u, p, \tau) & = \int_\Omega\left\{\frac{1}{4\mu}|\tau|^2 - \tau :\dot\varepsilon(u) + p\nabla\cdot u + f\cdot u\right\}\mathrm d\omega \nonumber \\
+    & \qquad + \sum_\gamma\int_\gamma \left\langle\tau - pI \right\rangle: [u\otimes n]\,\mathrm d\gamma - \sum_\gamma\int_\gamma\frac{\alpha\mu}{2\lambda}|[u]|^2\mathrm d\gamma \label{eq:sipdg-stokes-dual-xyz}
 \end{align}
 Note how the sign on the facet fluxes and penalty has changed.
 This form of the problem assumes that the stresses are in $L^2(\Omega, \mathbb S)$ and the velocities in $H^1(\Omega, \mathbb{R}^d)$.
@@ -268,12 +345,28 @@ In general it is more common to look for a stress in $H(\text{div})$ and a veloc
 % -------------------------------------
 \section{Terrain-following coordinates}
 
-A typical introductory continuum mechanics textbook starts by describing Eulerian (fixed in space and time) and Lagrangian (material-following) reference frames.
-For the most part, it is more common to use a fixed than a moving reference frame for computational fluid dynamics.
-The simplest explanation for this preference is that, for many interesting fluid flows, an initially circular representative volume element can deform into one with a much larger surface-to-volume ratio.
-For many problems, the system is open and so using a material-following coordinate system introduces additional complications at the inflow and outflow boundaries.
+\begin{table}[t]
+    \centering
+    \begin{tabular}{|c|c|c|}
+        \hline
+        Variable & Cartesian & Curvilinear \\
+        \hline
+        velocity & $u$ & $Ju$ \\
+        gradients & $\nabla \phi$ & $\nabla\phi\cdot J^{-1}$ \\
+        divergence & $\nabla\cdot u$ & $|\det J|^{-1}\nabla\cdot\{|\det J|\,u\}$ \\
+        normal & $n$ & $\sfrac{nJ^{-1}}{|nJ^{-1}|}$ \\
+        volume element & $\mathrm d\omega$ & $|\det J|\,\mathrm d\omega$ \\
+        area element & $\mathrm d\gamma$ & $|\det J|\cdot |nJ^{-1}|\,\mathrm d\gamma$ \\
+        volume/surface ratio & $\sfrac{|\omega|}{|\gamma|}$ & $\sfrac{|\omega|}{|nJ^{-1}|\cdot|\gamma|}$ \\
+        \hline
+    \end{tabular}
+    \caption{All of the terms that appear in the minimization form of the Stokes problem and their equivalent in a curvilinear coordinate system.
+    Replacing every instance of a term in the ``Cartesian'' column with its counterpart in the  ``Curvilinear'' column gives the equivalent expression of the problem in the curvilinear coordinate system.}
+    \label{tab:xform-rules}
+\end{table}
 
-For free surface flows, the geometry is changing in time and there are choices the modeler has to make about how to capture this effect.
+The geometry of a free-surface flow is changing in time.
+There are choices the modeler has to make about how to capture this effect and no one choice is clearly superior.
 One possibility is to use a fixed coordinate system and a moving mesh.
 The ice-flow modeling pacakge Elmer/ICE uses a Cartesian coordinate system and advects the mesh with the flow using an arbitrary Lagrangian-Eulerian scheme \citep{gagliardini2013capabilities}.
 Alternatively, one can use a fixed mesh and a moving coordinate system.
@@ -283,23 +376,31 @@ Finally, one can use a completely fixed mesh and coordinate system and use inter
 \textcolor{red}{This text is also very glaciology-biased and we should talk about geodynamics a bit.}
 Here we will pursue the approach of using a coordinate system that is fixed in the horizontal but moving in the vertical.
 
-
-\subsection{Transforming vectors and gradients}
-
-A moving free surface presents an additional challenge because the geometry of the problem is changing in time.
-We can solve this problem -- while creating a host of other problems -- by transforming the coordinates.
+We can solve the problem of a moving geometry by transforming the coordinates.
 The idea of terrain-following coordinates is to map the lower surface to 0 and the upper surface to 1.
-In so doing, we can work on the Cartesian product of a phootprint domain $\Phi$ and the unit interval $[0, 1]$.
+In so doing, we can work on the Cartesian product of a footprint domain and the unit interval $[0, 1]$.
 We will denote the Cartesian coordinates as $x_1, x_2, x_3$ and terrain-following coordinate as $\xi_1, \xi_2, \xi_3$.
 The transformation from terrain-following to Cartesian coordinates is
 \begin{equation}
     \left[\begin{matrix}x_1 \\ x_2 \\ x_3\end{matrix}\right] = \left[\begin{matrix}\xi_1 \\ \xi_2 \\ b(\xi_1, \xi_2) + \xi_3h(\xi_1, \xi_2)\end{matrix}\right].
+    \label{eq:explicit-tfc}
 \end{equation}
-The complications come in because the surfaces of constant $\xi_3$ are curved.
-Taking a derivative with respect to the horizontal coordinates with the elevation $x_3$ fixed is not the same as taking a derivative with $\xi_3$ fixed.
-We'll show below how to transform the Stokes equations into this new coordinate system.
+In this coordinate system, we get to pretend like the domain is a slab with a constant thickness that doesn't change in time.
 
-The explicit expression for the transformation from terrain-following to Cartesian coordinates will let us also transform vector and tensor fields and their derivatives.
+This coordinate transformation solves some problems only to create others.
+Part of the reason that Cartesian (and cylindrical and spherical polar) coordinates are convenient is because the coordinate surfaces are perpendicular to each other.
+In terrain-following coordinates, the physical image of the surface of constant $\xi_3$ is curved.
+Taking a derivative with respect to the horizontal coordinates with the elevation $x_3$ fixed is not the same as taking a derivative with $\xi_3$ fixed.
+But the surfaces of constant $\xi_3$ are also not orthogonal to the surfaces of constant $\xi_1$ and $\xi_2$ and so we end up with more complicated expressions for vectors and gradients.
+To use this new coordinate system, we have to systematically transform every term in the Stokes equations.
+We show all the transformation rules and the transformed Stokes equations in the next subsections.
+
+All of the transformation rules described below are summarized in Table \ref{tab:xform-rules}.
+
+
+\subsection{Transformation rules}
+
+The explicit expression in equation \eqref{eq:explicit-tfc} for the transformation from terrain-following to Cartesian coordinates will let us also transform vector and tensor fields and their derivatives.
 First, we'll introduce a vector field
 \begin{equation}
     \sigma = \nabla b + \xi_3\nabla h
@@ -313,17 +414,26 @@ Then we can concisely express the derivative of the transformation from Cartesia
     J = \frac{\mathrm dx}{\mathrm d\xi} = \left[\begin{matrix}I & 0 \\ \sigma^* & h\end{matrix}\right].
     \label{eq:dx-dxi}
 \end{equation}
-We now know how to transform integrals into terrain-following coordinates:
+All that the transformation rules below require is an explicit expression for $J$ or its inverse.
+The derivations are all rudimentary multivariable calculus.
+Nonetheless implementating the total of all of them can be error-prone, so they are worth repeating.
+
+\paragraph{Volumes.}
+Transforming volume integrals follows the familiar rule of multiplying by the determinant of the linearization of the transformation map:
 \begin{equation}
-    \mathrm dx = |\det J|\mathrm d\xi = h\,\mathrm d\xi.
+    \mathrm d\omega_x = |\det J|\ud\omega_\xi = h\ud\omega_\xi.
+    \label{eq:xform-volume}
 \end{equation}
 As a sanity check, this weighting factor makes the physical units work out correctly.
 
-Now we also have to think about how to transform vectors and tensors between coordinate systems.
-The components of the velocity in Cartesian ($u_x$) and terrain-following ($u_\xi$) coordinates are not the same.
+\paragraph{Velocity vectors.}
+We also have to think about how to transform vectors and tensors between coordinate systems.
+The velocity vector itself has an existence independent of the frame of reference.
+But the components of the velocity in Cartesian ($u_x$) and terrain-following ($u_\xi$) coordinates are not the same.
 We can derive the relation between them using the chain rule, and reasoning informally that a velocity is a rate of change of position with time:
 \begin{equation}
     u_x = \frac{\mathrm dx}{\mathrm dt} = \frac{\mathrm dx}{\mathrm d\xi}\frac{\mathrm d\xi}{\mathrm dt} = Ju_\xi.
+    \label{eq:xform-velocity}
 \end{equation}
 The body forces transform the same way as well:
 \begin{equation}
@@ -332,6 +442,7 @@ The body forces transform the same way as well:
 Intuitively, the gravitational acceleration vector is perpendicular to surfaces of constant depth but is not perpendicular to surfaces of constant relative depth.
 We can see from the explicit expression for $J$ in equation \eqref{eq:dx-dxi} that, because of the identity block, the only difference is in the vertical components of the velocity and force.
 
+\paragraph{Gradients.}
 Next we need to be able to transform derivatives.
 To do that, we'll need to know what the derivative of the inverse transformation back from terrain-following to Cartesian coordinates is.
 We could compute the inverse transformation and then differentiate it, or we could use the implicit function theorem and the fact that $J$ is a triangular matrix.
@@ -343,6 +454,7 @@ These yield the explicit expression
 Given an arbitrary field $\phi$, the chain rule tells us that
 \begin{equation}
     \frac{\mathrm d\phi}{\mathrm dx} = \frac{\mathrm d\phi}{\mathrm d\xi}\cdot\frac{\mathrm d\xi}{\mathrm dx} = \frac{\mathrm d\phi}{\mathrm d\xi}\cdot J^{-1}.
+    \label{eq:xform-gradient}
 \end{equation}
 This is just a restatement of the fact that derivatives transform as covectors and not as vectors.
 We can then write down an expression for the velocity gradient:
@@ -350,33 +462,82 @@ We can then write down an expression for the velocity gradient:
     \nabla_xu_x = \nabla_\xi(Ju_\xi)J^{-1}.
     \label{eq:velocity-gradient}
 \end{equation}
-We obtain the strain rate tensor by symmetrizing this expression.
+We get the strain rate tensor by symmetrizing the above expression.
 
-Finally, we need to compute the divergence of a vector field.
+\paragraph{Normals.}
+The unit outward normal ``vector'' to a volume element is not really a vector; it's a covector.
+It does not transform by multiplication on the left by $J$.
+A heuristic that can help to remember the right transformation rule is to think of the outward-pointing normal vector as the gradient of the signed distance function to the interior of the domain.
+This heuristic makes it clear that (1) the outward-pointing normal is not a column vector but a row vector and (2) it transforms by picking up a factor of $J^{-1}$ on the right.
+In short,
+\begin{equation}
+    n_x = \frac{n_\xi\,J^{-1}}{|n_\xi\,J^{-1}|}.
+    \label{eq:xform-normal}
+\end{equation}
+Here there is a normalization factor in the denominator in order to ensure that $n_x$ has unit length.
+In the integrals we write down to express the Stokes problem, often this normalization factor in the denominator will cancel with the same factor in the numerator of a different expression.
+
+\paragraph{Area elements.}
+While volume elements all transform by multiplication by a factor of $|\det J|$, surface area elements transform differently depending on their orientation.
+The general rule is
+\begin{equation}
+    d\gamma_x = |\det J|\cdot |n_\xi\,J^{-1}|\,d\gamma_\xi.
+    \label{eq:xform-area}
+\end{equation}
+In our case, the facets will all be either horizontal or vertical in the terrain-following coordinate system.
+We can then make simplifications for the area element.
+We also note that many of the area integrals that we need to calculate include a factor of the unit normal vector.
+So the factor of $|n_\xi\,J^{-1}|$ in the area measure cancels with a factor of its reciprocal in the outward normal vector.
+
+\paragraph{Length scales.}
+Interior penalty methods require some length scale in order to penalize jumps across facets.
+Using the cell diameter is a reasonable choice if the mesh is isotropic.
+In our case, the meshes can be highly anisotropic.
+Here a better measure of the length scale is the cell volume divided by the facet area:
+\begin{equation}
+    \lambda_x = \frac{|\omega_x|}{|\gamma_x|}
+\end{equation}
+where $|\omega_x|$, $|\gamma_x|$ are the volume and surface area of the cell and facet in Cartesian coordinates.
+This ratio gives a measure of the cell size normal to the face $\gamma$.
+It also has the virtue of being easy to approximate when the cells are curved, while the cell diameter is not.
+We can define the transformed length scale by combining the transformation rules for volumes and elements.
+Here a factor of $|\det J|$ in the numerator and denominator cancel:
+\begin{equation}
+    \lambda_x = \frac{\cancel{|\det J|}|\omega_\xi|}{\cancel{|\det J|}|n_\xi\,J^{-1}||\gamma_\xi|} = \frac{|\omega_\xi|}{|n_\xi\,J^{-1}||\gamma_\xi|}
+    \label{eq:xform-length-scale}
+\end{equation}
+
+\paragraph{Divergences.}
+The divergence of a vector field is more involved.
 In Cartesian coordinates, the divergence operator is the negative adjoint of the gradient operator:
 \begin{equation}
-    \int_\Omega q\nabla_x \cdot v_x\,\mathrm dx = -\int_\Omega\nabla_x q\cdot v_x\,\mathrm dx + \ldots
+    \int_\Omega q\nabla_x \cdot v_x\,\mathrm d\omega_x = -\int_\Omega\nabla_x q\cdot v_x\,\mathrm d\omega_x + \ldots
 \end{equation}
 Here we ignore irrelevant boundary integrals that arise from using integration by parts.
 The general expression for the divergence in other coordinate systems follows by requiring this relationship to remain true.
-We know how $\mathrm dx$, $v_x$, and $\nabla_x q$ transform from Cartesian to terrain-following coordinates:
+We know how $\mathrm d\omega$, $v_x$, and $\nabla_x q$ transform from Cartesian to terrain-following coordinates:
 \begin{align}
-    \ldots & = -\int_{\Phi \times [0, 1]}\nabla_\xi q \,J^{-1}\cdot Ju_\xi\;h\,\mathrm d\xi \nonumber\\
-    & = -\int_{\Phi\times[0, 1]}\nabla_\xi q\cdot h u_\xi\;\mathrm d\xi \nonumber\\
-    & = +\int_{\Phi\times[0, 1]}q\nabla_\xi\cdot(hu_\xi)\,\mathrm d\xi.
+    \ldots & = -\int_\Omega\nabla_\xi q\cdot J^{-1}\cdot Ju_\xi\;h\ud\omega_\xi \nonumber\\
+    & = -\int_\Omega\nabla_\xi q\cdot h u_\xi\ud\omega_\xi \nonumber\\
+    & = +\int_\Omega q\nabla_\xi\cdot(hu_\xi)\ud\omega_\xi.
 \end{align}
 Here we used the fact that the factors of $J^{-1}$ and $J$ cancel out, then applied the usual trick to move the gradient back over as a divergence.
 Now we can assert that defining
 \begin{equation}
     \nabla_x\cdot u_x = h^{-1}\nabla_\xi\cdot (hu_\xi)
+    \label{eq:xform-divergence}
 \end{equation}
 preserves the relationship between the divergence of a vector field and the gradient of a scalar field.
 
+
 \subsection{The Stokes equations in terrain-following coordinates}
 
-Now we have all of the ingredients that we need to express the minimization form of the Stokes problem in terrain-following coordinates:
+We can proceed by systematically applying the transformation rules, summarized in Table \ref{tab:xform-rules}, to the minimization form of the Stokes problem.
+We will start with the objective for the original problem.
+The DG facet terms are shown separately below.
+The objective becomes
 \begin{equation}
-    G(u, p) = \int_\Phi\int_0^1\left\{\frac{1}{2}h\tau :\dot\varepsilon - p\nabla\cdot(hu) - hf\cdot J^*J u\right\}\mathrm d\xi
+    G(u, p) = \int_\Omega\left\{\frac{1}{2}h\tau :\dot\varepsilon - p\nabla\cdot(hu) - hf\cdot J^*J u\right\}\mathrm d\omega
     \label{eq:stokes-tfc}
 \end{equation}
 where the deviatoric stress $\tau$ is again equal to $2\mu\dot\varepsilon$, but the rate of strain tensor is
@@ -384,16 +545,18 @@ where the deviatoric stress $\tau$ is again equal to $2\mu\dot\varepsilon$, but 
     \dot\varepsilon = \frac{1}{2}\left\{\nabla(Ju)J^{-1} + J^{-*}\nabla (Ju)^*\right\}.
     \label{eq:strain-rate-tfc}
 \end{equation}
-While there are extra terms in this functional compared to the expression in Cartesian coordinates, all of them are expressible in the Unified Form Language or related domain-specific languages for PDEs.
+The integrand, provided that we express it in terms of the strain rate, is largely similar to the expression in Cartesian coordinates but for a few extra factors of $h$.
+The extra terms are all expressible in the Unified Form Language or related domain-specific languages for PDEs.
 
-We might also want a form of the problem where the stress tensor is an additional unknown.
-This alternate form is the convex conjugate of the functional in equation \eqref{eq:stokes-tfc} with respect to the duality pairing
+We can get the three-field form of the Stokes problem in terrain-following coordinates using convex duality.
+We have to instead use the duality pairing
 \begin{equation}
-    \langle \tau, u\rangle = \int_\Phi\int_0^1h\tau : \dot\varepsilon(u)\,\mathrm d\xi.
+    \langle \tau, u\rangle = \int_\Omega h\tau : \dot\varepsilon(u)\,\mathrm d\omega
 \end{equation}
+which carries a factor of $h$.
 The conjugate functional is
 \begin{equation}
-    G^*(u, p, \tau) = \int_\Phi\int_0^1\left\{\frac{1}{4\mu}h|\tau|^2 - h\tau :\dot\varepsilon(u) + p\nabla\cdot hu + hf\cdot J^*Ju\right\}\mathrm d\xi
+    G^*(u, p, \tau) = \int_\Omega\left\{\frac{1}{4\mu}h|\tau|^2 - h\tau :\dot\varepsilon(u) + p\nabla\cdot hu + hf\cdot J^*Ju\right\}\mathrm d\omega
     \label{eq:stokes-conjugate-tfc}
 \end{equation}
 The usual reason to include the stress as an unknown is because the constitutive law is defined implicitly.
@@ -406,108 +569,92 @@ Now by passing to the dual form in equation \eqref{eq:stokes-conjugate-tfc}, the
 That term is multiplied by $h$.
 The advantage of having only factors of $h$ and no factors of $h^{-1}$ is that the integrand is a polynomial.
 We can then pick a quadrature rule that allows us to integrate it exactly, ruling out a potential source of error.
-The expense of including the stress as an unknown might not be a good price to pay just to turn a rational integrand into a polynomial, but it is still worth noting.
+The expense of including the stress as an unknown might not be a good price to pay just to turn a rational integrand into a polynomial.
+Still, the difference is worth pointing out, and the simplification can be more valuable when considering nonlinear rheologies.
 
 Finally, the thickness evolves in time according to a conservative advection equation.
 The variational form of this equation is
 \begin{equation}
-    \int_\Phi\left\{\frac{\partial h}{\partial t}\phi - h\bar u\cdot\nabla\phi\right\}\mathrm dx = \int_\Phi(\dot a - \dot m)\phi\ud x
+    \int_\Omega\left\{\frac{\partial h}{\partial t}\phi - hu\cdot\nabla\phi\right\}\mathrm d\omega = \int_\Omega(\dot a - \dot m)\phi\ud\omega
 \end{equation}
-where $\phi$ is an arbitrary test function, $\bar u$ is the depth-averaged velocity, and $\dot a$, $\dot m$ are the accumulation and ablation rates.
-This equation requires some modification when we discretize, which we describe below.
+where $\phi$ is an arbitrary test function and $\dot a$, $\dot m$ are the accumulation and ablation rates.
+The usual form of this equation as described in e.g. \citet{greve2009dynamics} instead uses the depth-averaged velocity $\bar u$, and the integration domain is the lower-dimensional footprint of the computational mesh.
+We can instead use a finite element space for the thickness $h$ which is defined on the entire domain.
+The finite element for $h$ is the tensor product of an ordinary continuous element in the horizontal plane and an element which takes constant values in the vertical dimension.
+The derivative w.r.t. the vertical coordinate of any function in this space is zero.
+We then recover the depth-average of $u$ by virtue of integrating through the column.
+This approach might be less efficient computationally but here we are more concerned with correctness than with performance optimization.
 
-\subsection{Riemannian geometry (or not)}
+\subsection{Discontinuous Galerkin discretization}
 
-A reader who knows Riemannian geometry will recognize that the metric tensor $J^*J$ has made its entrance in the inner product between the body force and the velocity.
-As stated in the introduction, we have avoided using Riemannian geometry here.
-We will discretize the bed elevation and thickness using continuous Galerkin finite elements, which means that the slope field $\sigma$ in equation \eqref{eq:slope-field} is discontinuous in the horizontal direction.
-Consequently, \textbf{both the deformation matrix $J$ and the metric tensor are discontinuous}.
-In order to compute covariant derivatives using the usual formulas from Riemannian geometry, we need to calculate the notorious Christoffel symbols.
-But the Christoffel symbols are derivatives of the metric tensor.
-
-We could treat the Christoffel symbols as distributions.
-If we could do that, the discretization would be more complicated.
-But there is a convincing reason to believe that we cannot treat Christoffel symbols as distributions in the first place.
-There is no well-defined concept of the product of distributions in classic distribution theory.
-We need to (for example) take products of the strain rate tensor with itself in order to compute the dissipation rate, and that would involve products of distributions.
-
-We have instead avoided metrics, Christoffel symbols, or Riemannian geometry.
-It's possible to approach the problem this way because we start with an explicit isometry into Euclidean space.
-A handful of other works in the research literature have derived the Navier-Stokes equations in time-dependent curvilinear coordinates without Christoffel symbols for either or both of the reasons we described above.
-\citet{warsi1981conservation} derived both conservation and differential forms of the Navier-Stokes equations in curvilinear coordinates in a way that avoids Christoffel symbols.
-\citet{yang1994general} built on this to simulate fluid flow in curved geometries using the finite volume method.
-We are not aware of any research works examining a variational form or discretization via finite elements.
-
-
-% ----------------------
-\section{Discretization}
+The objective functional in equations \eqref{eq:stokes-tfc} and \eqref{eq:strain-rate-tfc} describes the solution of the Stokes problem in an ideal curvilinear geometry.
+But our goal is to simulate fluid flows with an evolving free surface.
+When we discretize the bed elevation and fluid thickness with conventional finite elements, the slope field $\sigma$ in equation \eqref{eq:slope-field} is discontinuous in the horizontal direction.
+Consequently, the deformation matrix $J$ is discontinuous, and it appears under a derivative in equation \eqref{eq:strain-rate-tfc}.
+\textbf{The discontinuity of the deformation matrix is the major barrier that we need to overcome.}
 
 \begin{figure}
 \begin{lstlisting}
 def stress_strain_rate(u, b, h):
-    J = coordinate_transformation_derivative(b, h)
-    J_inv = coordinate_transformation_derivative_inverse(b, h)
-    J_u = dot(J, u)
-    du = dot(grad(J_u), J_inv)
+    J, J_inv = coordinate_transformation_derivatives(b, h)
+    Ju = dot(J, u)
+    du = dot(grad(Ju), J_inv)
     ε = sym(du)
     return ε, 2 * μ * ε
 
 
-def free_energy_rate_tfc(u, p, f, b, h):
-    J = coordinate_transformation_derivative(b, h)
-    J_u = dot(J, u)
+def free_energy_rate(u, p, f, b, h):
+    J, _ = coordinate_transformation_derivatives(b, h)
+    Ju = dot(J, u)
     ε, τ = stress_strain_rate(u, b, h)
-    return (0.5 * h * inner(τ, ε) - p * div(h * u) - h * inner(f, J_u)) * dx
+    return (0.5 * h * inner(τ, ε) - p * div(h * u) - h * inner(f, Ju)) * dx
 
 
-def free_energy_rate_tfc_dg(u, p, f, b, h):
-    J = coordinate_transformation_derivative(b, h)
-    J_inv = coordinate_transformation_derivative_inverse(b, h)
+def free_energy_rate_facets(u, p, b, h):
+    J, J_inv = coordinate_transformation_derivatives(b, h)
     n = firedrake.FacetNormal(mesh)
-    γ = avg(firedrake.CellSize(mesh))
+    λ = firedrake.CellVolume(mesh) / firedrake.FacetArea(mesh)
 
-    J_u = dot(J, u)
+    Ju = dot(J, u)
     ε, τ = stress_strain_rate(u, b, h)
 
-    u_n = outer(J_u, dot(n, J_inv))
-    G_stress_flux = -inner(avg(h * τ), u_n("+") + u_n("-")) * dS
+    u_n = outer(Ju, dot(n, J_inv))
+    G_stress_flux = -inner(avg(h * τ), u_n('+') + u_n('-')) * dS
     G_pressure_flux = avg(p) * jump(h * u, n) * dS
-    G_penalty = α * μ / (2 * avg(γ)) * inner(jump(J_u), jump(J_u)) * avg(h) * dS
+    G_penalty = α * μ / (2 * avg(λ)) * inner(jump(Ju), jump(Ju)) * avg(h) * dS
 
-    G_conforming = free_energy_rate_tfc(u, p, f, b, h)
-    return G_conforming + G_stress_flux + G_pressure_flux + G_penalty
+    return G_stress_flux + G_pressure_flux + G_penalty
 \end{lstlisting}
 \caption{Python source code to form the free energy dissipation rate for the Stokes equations in terrain-following coordinates.}
 \label{fig:source-code-tfc}
 \end{figure}
 
-As we stated above, when the bed elevation and thickness are discretized using standard finite elements, the matrix $J$ is discontinuous across cell boundaries.
-If we examine expression \eqref{eq:strain-rate-tfc}, $J$ appears under a gradient and we are faced with the problem of how to differentiate a discontinuous quantity.
-This lack of continuity is the major problem we need to overcome.
-
-We can solve this problem using the interior penalty DG method.
-At a practical level, this amounts to substituting the transformed expressions for $u$ and its derivatives in terrain-following coordinates into the functional in equation \eqref{eq:sipdg-stokes-xyz}.
-For the integrals over cells $\omega$, this transformation is straightforward and already contained in equations \eqref{eq:stokes-tfc} and \eqref{eq:strain-rate-tfc}.
-The major change is in the facet integrals.
-Here there is one subtlety that can easily lead to mistakes.
-The velocity $u$ transforms as a vector, but the unit outward-pointing normal $n$ instead transforms as a covector.
-The easiest way to remember how $n$ transforms is to recall that it is the gradient of the signed distance function to the boundary of the domain.
-We can then more properly think of $n$ as a row vector which should be right-multiplied by $J^{-1}$.
+We can solve this problem with the interior penalty DG method.
+At a practical level, this amounts to applying the transformation rules of Table \ref{tab:xform-rules} to the DG facet corrections.
 The analogue of equation \eqref{eq:sipdg-stokes-xyz} in terrain-following coordinates is then
 \begin{align}
-    G_\alpha(u, p) & = \sum_\omega\int_\omega\left\{\frac{1}{2}h\tau:\dot\varepsilon - p\nabla\cdot(h u) - hf\cdot J^*Ju\right\}\ud\xi \nonumber \\
-    & \qquad - \sum_\gamma\int_\gamma\left\{\left\langle h\tau\right\rangle:[Ju\otimes n\,J^{-1}] + \langle p\rangle[hu\cdot n] \right\}\ud\gamma \nonumber \\
-    & \quad\qquad + \sum_\gamma\int_\gamma\frac{\alpha\mu}{2|\gamma|}|[Ju]|^2\, \langle h\rangle\ud\gamma
+    G_\alpha(u, p) & = \sum_\omega\int_\omega\left\{\frac{1}{2}h\tau:\dot\varepsilon - p\nabla\cdot(h u) - hf\cdot J^*Ju\right\}\ud\omega \nonumber \\
+    & \qquad - \sum_\gamma\int_\gamma\left\{\left\langle \tau\right\rangle:[Ju\otimes n\,J^{-1}] + \langle p\rangle[u\cdot n] \right\}h\ud\gamma \nonumber \\
+    & \quad\qquad + \sum_\gamma\int_\gamma\frac{\alpha\mu}{2\lambda}|[Ju]|^2\,h\ud\gamma
     \label{eq:sipdg-stokes-tfc}
 \end{align}
 where again $\tau = 2\mu\dot\varepsilon$ and the strain rate tensor in terrain-following coordinates is defined in equation \eqref{eq:strain-rate-tfc}.
-Even if we used the Taylor-Hood or MINI velocity-pressure pair, we would still need the facet integrals in order to account for the discontinuity in $J$ when the bed elevation and thickness are discretized in a finite element space.
-In other words, the extra DG terms restore continuity of $Ju$ in the limit of mesh refinement, even if $u$ was already continuous.
-But if we are willing to accept the added complexity of DG facet terms, then we may as well use DG schemes.
+We have simplified the expression above beyond what we would obtain by naively applying all of the transformation rules by cancelling out factors of $|n\,J^{-1}|$ that appear in both the numerator and the denominator of an integrand.
+
+Equation \eqref{eq:sipdg-stokes-tfc} is the key result of this paper.
+To our knowledge it has not appeared before in the literature.
+Using either terrain-following coordinates or discontinuous Galerkin methods is not new.
+The novelty of this approach is in using DG methods to overcome the continuity obstruction that we encounter when trying to apply the finite element method in terrain-following coordinates.
+Put a different way, conventional DG schemes are designed to recover continuity of $u$ in the limit as the mesh is refined.
+Here we use a discontinuous Galerkin-like method to instead recover continuity of $Ju$.
+Note that we can use either continuous or discontinuous basis functions for the velocity.
+Indeed, many of our unit tests will use Taylor-Hood elements for the velocity and pressure.
+As long as we (1) use the contravariant components of the velocity field in the curvilinear coordinate system and (2) discretize the thickness field with finite elements, we need to include the facet integrals that are normally used with discontinuous basis functions.
+But if we are willing to accept the added complexity of DG facet terms, then we may as well use a DG basis.
 
 The functional to be minimized for the velocity-pressure-stress form is again derivable as the convex conjugate of the corresponding primal form:
 \begin{align}
-    G_\alpha^*(u, p, \tau) & = \sum_\omega\int_\omega\left\{\frac{1}{4\mu}h|\tau|^2 - h\tau:\dot\varepsilon + p\nabla\cdot(h u) + hf\cdot J^*Ju\right\}\ud\xi \nonumber \\
+    G_\alpha^*(u, p, \tau) & = \sum_\omega\int_\omega\left\{\frac{1}{4\mu}h|\tau|^2 - h\tau:\dot\varepsilon + p\nabla\cdot(h u) + hf\cdot J^*Ju\right\}\ud\omega \nonumber \\
     & \qquad + \sum_\gamma\int_\gamma\left\{\left\langle h\tau\right\rangle:[Ju\otimes n\,J^{-1}] + \langle p\rangle[hu\cdot n] \right\}\ud\gamma \nonumber \\
     & \quad\qquad - \sum_\gamma\int_\gamma\frac{\alpha\mu}{2|\gamma|}|[Ju]|^2\, \langle h\rangle\ud\gamma
     \label{eq:sipdg-stokes-dual-tfc}
@@ -515,7 +662,8 @@ The functional to be minimized for the velocity-pressure-stress form is again de
 \textcolor{red}{Check that we can make the integrand a polynomial}.
 
 The source code to produce the free energy rate for the Stokes equations in terrain-following coordinates with both conforming and non-conforming elements is shown in Figure \ref{fig:source-code-tfc}.
-The function \texttt{free\_energy\_rate\_tfc\_dg}, which adds the corrections to the free energy rate that are usually associated with non-conforming elements, is used also for conforming elements when the thickness is discretized.
+The function \texttt{free\_energy\_rate\_facets} computes the facet corrections to the free energy rate that are associated with discontinuous elements.
+We add this facet correction for all elements (continuous and discontinuous) when the thickness is discretized.
 
 
 % ----------------------
@@ -747,8 +895,7 @@ Instead, we need to also know the surface and bed slope and the other components
 In contravariant terrain-following coordinates, however, the vertical component of the velocity times the thickness is exactly equal to the mass balance rate.
 Moreover, the horizontal contravariant components of the velocity are exactly equal to the sliding velocity and can thus be used directly to implement the sliding boundary condition.
 Implementing sliding boundary conditions in Cartesian coordinates involves additional work.
-For example, the Elmer/ICE package uses an ad hoc procedure to define the unit outward normal vector at the mesh vertices \citep{gagliardini2013capabilities}.
-Alternatively, one could use Nitsche's method.
+For example, the Elmer/ICE package used an ad hoc procedure to define the unit outward normal vector at the mesh vertices \citep{gagliardini2013capabilities} before implementing another approach based on Nitsche's method \citep{cheng2020full}.
 Implementing boundary conditions correctly is one of the most common sources of error in numerical discretization of differential equations.
 We argue that using the contravariant components of the velocity more directly corresponds with physical intuition about the vertical velocity and makes errors in the boundary conditions less likely.
 
@@ -756,6 +903,18 @@ Second, where both \citet{greve2009dynamics} and \citet{kleiner2014numerical} us
 Implementing the finite element method from scratch is arguably more involved than the finite difference method.
 New software tools such as Firedrake and UFL significantly reduce the gap in complexity.
 The modeler only has to correctly prescribe a variational form rather than write low-level computational kernels for finite element assembly.
+
+Several papers in the computational fluid dynamics have used the language of Riemannian geometry to describe flow in evolving curved geometries, for example \citet{luo2004contravariant}.
+Here the outlook is just as bad as for curvilinear coordinates discretized with finite elements.
+We need derivatives of the Riemannian metric (the Christoffel symbols) in order to calculate the covariant derivative of the velocity.
+The Riemannian metric, like the deformation matrix $J$, is discontinuous across cell boundaries if we discretize with finite elements.
+We have instead avoided Riemannian geometry for two reasons.
+First, the language is highly technical and will be unfamiliar to many earth scientists.
+Second, as shown above, we can rescue the situation with curvilinear coordinates using DG schemes.
+A handful of papers have derived the Navier-Stokes equations in time-dependent curvilinear coordinates but without Christoffel symbols.
+\citet{warsi1981conservation} derived both conservation and differential forms of the Navier-Stokes equations in curvilinear coordinates in a way that avoids Christoffel symbols.
+\citet{yang1994general} built on this to simulate fluid flow in curved geometries using the finite volume method.
+We are not aware of any papers that looked at a variational form or discretization via finite elements.
 
 There are several problems that this work does not address.
 First, we focus here on linear problems.
