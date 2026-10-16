@@ -319,11 +319,9 @@ Where Nitsche's method was originally created in order to impose Dirichlet bound
 Leaving aside any boundary conditions for now, the objective functional we extremize is:
 \begin{align}
     & G_\alpha(u, p) = \sum_\omega\int_\omega\left\{\frac{1}{2}\tau:\dot\varepsilon - p\nabla\cdot u - f\cdot u\right\}\mathrm d\omega \nonumber \\
-    & \qquad - \sum_\gamma\int_\gamma \left\langle\tau - pI \right\rangle: [u\otimes n]\,\mathrm d\gamma + \sum_\gamma\int_\gamma\frac{\alpha\mu}{2\lambda}|[u]|^2\mathrm d\gamma. \label{eq:sipdg-stokes-xyz}
+    & \qquad - \sum_\gamma\int_\gamma \left\langle\tau - pI \right\rangle: [u\otimes n]\,\mathrm d\gamma + \sum_\gamma\int_\gamma\frac{\alpha\mu|\gamma|}{2|\omega|}|[u]|^2\mathrm d\gamma. \label{eq:sipdg-stokes-xyz}
 \end{align}
-With DG methods, we can use finite element bases that do not meet the continuity requirements of the problem.
-This feature is sometimes an advantage.
-Continuity and differentiability are recovered in the limit as the mesh is refined.
+Here we have taken the length scale in the continuity penalty to be the volume-to-surface ratio $|\omega|/|\gamma|$ of the elements containing the facet $\gamma$.
 We can catch potential errors in the variational form by remembering that the DG facet fluxes should be the same if we swap which side of a facet is the ``$+$'' side and which is the ``$-$'' side.
 Figure \ref{fig:source-code-xyz} shows the source code for producing the free energy rate in Cartesian coordinates for both conforming and non-conforming elements.
 Although we have described the IPDG method via Nitsche's method, we can arrive at the same discretization from a conservation law with an appropriate choice of numerical flux \citep{cockburn2002local}.
@@ -333,10 +331,10 @@ This three-field form is more expensive, but it is the only solution when the co
 Here our focus is on Newtonian fluids, but as we will see below, the velocity-pressure-stress form has advantages even in the Newtonian case when using terrain-following coordinates.
 The three-field form of the Stokes problem also has a minimization principle.
 The free energy dissipation rate is just the convex conjugate of the original primal form.
-This gives us the analogue of equation \eqref{eq:sipdg-stokes-tfc}:
+This gives us the analogue of equation \eqref{eq:sipdg-stokes-xyz}:
 \begin{align}
     G_\alpha^*(u, p, \tau) & = \int_\Omega\left\{\frac{1}{4\mu}|\tau|^2 - \tau :\dot\varepsilon(u) + p\nabla\cdot u + f\cdot u\right\}\mathrm d\omega \nonumber \\
-    & \qquad + \sum_\gamma\int_\gamma \left\langle\tau - pI \right\rangle: [u\otimes n]\,\mathrm d\gamma - \sum_\gamma\int_\gamma\frac{\alpha\mu}{2\lambda}|[u]|^2\mathrm d\gamma \label{eq:sipdg-stokes-dual-xyz}
+    & \qquad + \sum_\gamma\int_\gamma \left\langle\tau - pI \right\rangle: [u\otimes n]\,\mathrm d\gamma - \sum_\gamma\int_\gamma\frac{\alpha\mu|\gamma|}{2|\omega|}|[u]|^2\mathrm d\gamma \label{eq:sipdg-stokes-dual-xyz}
 \end{align}
 Note how the sign on the facet fluxes and penalty has changed.
 This form of the problem assumes that the stresses are in $L^2(\Omega, \mathbb S)$ and the velocities in $H^1(\Omega, \mathbb{R}^d)$.
@@ -615,7 +613,8 @@ def free_energy_rate(u, p, f, b, h):
 def free_energy_rate_facets(u, p, b, h):
     J, J_inv = coordinate_transformation_derivatives(b, h)
     n = firedrake.FacetNormal(mesh)
-    λ = firedrake.CellVolume(mesh) / firedrake.FacetArea(mesh)
+    da = inner(dot(n, J_inv), dot(n, J_inv))
+    λ = firedrake.CellVolume(mesh) * da / firedrake.FacetArea(mesh)
 
     Ju = dot(J, u)
     ε, τ = stress_strain_rate(u, b, h)
@@ -637,11 +636,12 @@ The analogue of equation \eqref{eq:sipdg-stokes-xyz} in terrain-following coordi
 \begin{align}
     G_\alpha(u, p) & = \sum_\omega\int_\omega\left\{\frac{1}{2}h\tau:\dot\varepsilon - p\nabla\cdot(h u) - hf\cdot J^*Ju\right\}\ud\omega \nonumber \\
     & \qquad - \sum_\gamma\int_\gamma\left\{\left\langle \tau\right\rangle:[Ju\otimes n\,J^{-1}] + \langle p\rangle[u\cdot n] \right\}h\ud\gamma \nonumber \\
-    & \quad\qquad + \sum_\gamma\int_\gamma\frac{\alpha\mu}{2\lambda}|[Ju]|^2\,h\ud\gamma
+    & \quad\qquad + \sum_\gamma\int_\gamma\frac{\alpha\mu|\gamma|}{2|\omega|}\,|nJ^{-1}|^2\,|[Ju]|^2\,h\ud\gamma
     \label{eq:sipdg-stokes-tfc}
 \end{align}
 where again $\tau = 2\mu\dot\varepsilon$ and the strain rate tensor in terrain-following coordinates is defined in equation \eqref{eq:strain-rate-tfc}.
-We have simplified the expression above beyond what we would obtain by naively applying all of the transformation rules by cancelling out factors of $|n\,J^{-1}|$ that appear in both the numerator and the denominator of an integrand.
+We have simplified the expression above beyond what we would obtain by naively applying all of the transformation rules.
+In the facet flux term, we can cancel out factors of $|n\,J^{-1}|$ that appear in both the numerator and the denominator of an integrand.
 
 Equation \eqref{eq:sipdg-stokes-tfc} is the key result of this paper.
 To our knowledge it has not appeared before in the literature.
@@ -657,8 +657,8 @@ But if we are willing to accept the added complexity of DG facet terms, then we 
 The functional to be minimized for the velocity-pressure-stress form is again derivable as the convex conjugate of the corresponding primal form:
 \begin{align}
     G_\alpha^*(u, p, \tau) & = \sum_\omega\int_\omega\left\{\frac{1}{4\mu}h|\tau|^2 - h\tau:\dot\varepsilon + p\nabla\cdot(h u) + hf\cdot J^*Ju\right\}\ud\omega \nonumber \\
-    & \qquad + \sum_\gamma\int_\gamma\left\{\left\langle h\tau\right\rangle:[Ju\otimes n\,J^{-1}] + \langle p\rangle[hu\cdot n] \right\}\ud\gamma \nonumber \\
-    & \quad\qquad - \sum_\gamma\int_\gamma\frac{\alpha\mu}{2|\gamma|}|[Ju]|^2\, \langle h\rangle\ud\gamma
+    & \qquad + \sum_\gamma\int_\gamma\left\{\left\langle\tau\right\rangle:[Ju\otimes n\,J^{-1}] + \langle p\rangle[u\cdot n] \right\}\,h\ud\gamma \nonumber \\
+    & \quad\qquad - \sum_\gamma\int_\gamma\frac{\alpha\mu|\gamma|}{2|\omega|}\,|nJ^{-1}|^2\,|[Ju]|^2\, \langle h\rangle\ud\gamma
     \label{eq:sipdg-stokes-dual-tfc}
 \end{align}
 \textcolor{red}{Check that we can make the integrand a polynomial}.
