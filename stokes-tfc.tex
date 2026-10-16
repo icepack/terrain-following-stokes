@@ -307,7 +307,9 @@ where $\kappa$ is the friction coefficient \citep{freund1995weakly, cheng2020ful
 
 The discussion above assumes that we are using conventional finite element bases, which are continuous across cell boundaries.
 When we switch to terrain-following coordinates, we will have to use a scheme that works even when the basis functions are not continuous.
-These schemes are called \emph{discontinuous Galerkin} (DG) methods.
+The typical reason to work with the more flexible class of discontinuous basis functions is to solve advection-dominated problems.
+The problems we focus on here are not advection-dominated.
+All the same, these \emph{discontinuous Galerkin} (DG) methods will, as we show below, solve one of the thornier issues that we have to confront.
 To be consistent with the ideal problem, a DG method has to recover continuity in the limit as the mesh is refined.
 The \emph{symmetric interior penalty} discontinuous Galerkin (SIPDG) method is one type of scheme that provably achieves this goal.
 
@@ -371,7 +373,7 @@ One possibility is to use a fixed coordinate system and a moving mesh.
 The ice-flow modeling pacakge Elmer/ICE uses a Cartesian coordinate system and advects the mesh with the flow using an arbitrary Lagrangian-Eulerian scheme \citep{gagliardini2013capabilities}.
 Alternatively, one can use a fixed mesh and a moving coordinate system.
 The package SICOPOLIS uses terrain-following coordinates, described in \S5.7 of \citet{greve2009dynamics} and below.
-Finally, one can use a completely fixed mesh and coordinate system and use interface-tracking techniques such as the level-set method \citep{hossain2020modelling}.
+Finally, one can use a completely fixed mesh and coordinate system and use interface-tracking techniques such as the level-set or volume-of-fluid methods \citep{hossain2020modelling, gray2026variational}.
 \textcolor{red}{Check ISSM, PISM, BISICLES if we want to be exhaustive}.
 \textcolor{red}{This text is also very glaciology-biased and we should talk about geodynamics a bit.}
 Here we will pursue the approach of using a coordinate system that is fixed in the horizontal but moving in the vertical.
