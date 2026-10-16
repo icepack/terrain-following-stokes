@@ -224,6 +224,17 @@ where $\otimes$ denotes the outer product of tensors.
 In other words, the normal-weighted jump is always one rank higher than its argument (a scalar maps to a vector, a vector to a tensor, etc.).
 Note how we add the two terms instead of subtracting them because the sign flip is implicit in the normal vector.
 
+The discrete form of the problem using a DG basis contains sums of integrals over facets of the mesh.
+Some of these terms contain integrals over only certain types of facets.
+For example, one of the integrals we need to calculate is evaluated only over the part of the domain boundary where Dirichlet conditions are applied, and another for Robin conditions.
+Additionally, there are some simplifications to the algebra that we can make by separately evaluating integrals over horizontal and vertical facets.
+We will write $\Gamma$ as the collection of all facets of the mesh, and a subscript to specify which subset of facets to sum over.
+So to sum over only the facets $\gamma$ that are on the domain boundary where Dirichlet conditions are applied, we will write
+\begin{equation}
+    \sum_{\gamma \in \Gamma_D}\int_\gamma\big\{\cdots\big\}\mathrm d\gamma.
+\end{equation}
+The relevant subsets are the set of Dirichlet facets $\Gamma_D$ and Robin facets $\Gamma_R$ on the domain boundary, and the horizontal and vertical interior facets $\Gamma_H$ and $\Gamma_V$.
+
 
 \subsection{The Stokes equations}
 
@@ -280,34 +291,53 @@ The velocity in the normal direction is set to some fixed value $\dot m$, which 
 \end{equation}
 In the tangential direction, the traction is proportional to the slip velocity:
 \begin{equation}
-    (I - n\otimes n)\tau = -\kappa(I - n\otimes n)u.
+    (I - n\otimes n)\tau\,n = -\kappa(I - n\otimes n)u.
 \end{equation}
 Here the matrix $I - n\otimes n$ projects a vector onto the plane tangent to the surface.
 
 \subsection{Discontinuous Galerkin discretization}
 
-The conventional way to enforce Dirichlet boundary conditions is to modify the linear system of equations to be solved.
-Nitsche's method is a way to enforce boundary conditions by instead modifying the variational form.
-One way of looking at Nitsche's method is as an augmented Lagrangian scheme together with an exact solution for the Lagrange multipliers \citep{stenberg1995some}.
-The Nitsche-modified functional is
+\subsubsection{Nitsche's method}
+
+The conventional way to enforce Dirichlet boundary conditions is to modify the discretized linear system.
+\emph{Nitsche's method} is a way to enforce boundary conditions by instead modifying the variational form \citep{nitsche1971variationsprinzip}.
+Here we give a brief overview of Nitsche's method for two reasons.
+First, it leads in a natural way to discontinuous Galerkin methods.
+Second, we will need Nitsche's method in order to apply slip boundary conditions.
+
+A blunt way to enforce boundary conditions is to add a penalty on any departure of $u$ from $u_\Gamma$ along the boundary to the functional to be minimized.
+The penalty method is not used often in practice because it makes the condition number growth of the linear system much worse.
+Nitsche's method amounts to applying a more sophisticated technique than the penalty method together with some special characteristics of finite element discretizations \citep{stenberg1995some}.
+The Nitsche functional is
 \begin{equation}
-    G_\alpha(u, p) = G(u, p) - \int_\Gamma(\tau - pI) : n\otimes(u - u_\Gamma)\mathrm d\gamma + \int_\Gamma\frac{\alpha\mu}{2\lambda}|u - u_\Gamma|^2\mathrm d\gamma.
+    G_\alpha(u, p) = G(u, p) - \sum_{\gamma\in\Gamma_D}\int_\gamma(\tau - pI) : n\otimes(u - u_\Gamma)\mathrm d\gamma + \sum_{\gamma\in\Gamma_D}\int_\gamma\frac{\alpha\mu}{2\lambda}|u - u_\Gamma|^2\mathrm d\gamma.
+    \label{eq:nitsche-dirichlet}
 \end{equation}
 Here $\lambda$ is a measure of the local facet diameter and $\alpha$ is a dimensionless constant related to the mesh regularity.
-The integrals are over all mesh facets that are contained in the segment $\Gamma$ of the domain boundary where the velocity should be fixed to $u_\Gamma$.
+The integrals are again over all mesh facets that are contained in the segment $\Gamma_D$ of the domain boundary where the velocity should be fixed to $u_\Gamma$.
+Finding a minimizer of the functional in equation \eqref{eq:nitsche-dirichlet} solves the original problem and boundary conditions up to discretization error without having to modify the linear system.
 
+So Nitsche's method offers another way to enforce Dirichlet boundary conditions, but one could argue about its utility since we can always modify the linear system.
+For slip boundary conditions, on the other hand, Nitsche's method is the \emph{only} way.
 It is not possible to satisfy the normal-flow condition \eqref{eq:normal-flow-bc} exactly when using continuous Galerkin finite elements for the velocity on a curved surface.
 The velocity has degrees of freedom at the vertices, while the normal is defined on facets and not even well-defined at vertices.
-The conventional approach of modifying degrees of freedom is not available for this type of boundary condition.
-We can also use Nitsche's method to enforce the normal-flow condition approximately:
+The conventional approach of modifying the linear system is not available for this type of boundary condition.
+We can instead use Nitsche's method to enforce the normal-flow condition approximately:
 \begin{equation}
-    G_\alpha(u, p) = G(u, p) - \int_\Gamma n\cdot(\tau - pI)n\,(u\cdot n)\mathrm d\gamma + \int_\Gamma\frac{\alpha\mu}{2\lambda}(u\cdot n)^2\mathrm d\gamma + \int_\Gamma\frac{\kappa}{2}|(I - n\otimes n)u|^2\mathrm d\gamma
+    G_\alpha(u, p) = G(u, p) - \sum_{\gamma\in\Gamma_R}\int_\gamma n\cdot(\tau - pI)n\,(u\cdot n)\mathrm d\gamma + \sum_{\gamma\in\Gamma_R}\int_\gamma\frac{\alpha\mu}{2\lambda}(u\cdot n)^2\mathrm d\gamma + \sum_{\gamma\in\Gamma_R}\int_\gamma\frac{\kappa}{2}|(I - n\otimes n)u|^2\mathrm d\gamma
+    \label{eq:nitsche-slip}
 \end{equation}
 where $\kappa$ is the friction coefficient \citep{freund1995weakly, cheng2020full}.
+The flux term contains the full stress for Dirichlet conditions, but only the normal-normal component of the stress for Robin conditions.
+Likewise the penalty for Dirichlet conditions is on the square norm of $u - u_\Gamma$, while the penalty for Robin conditions is the square norm of $u\cdot n$.
+
+\subsubsection{Interior penalty methods}
 
 The discussion above assumes that we are using conventional finite element bases, which are continuous across cell boundaries.
 When we switch to terrain-following coordinates, we will have to use a scheme that works even when the basis functions are not continuous.
-These schemes are called \emph{discontinuous Galerkin} (DG) methods.
+The typical reason to work with the more flexible class of discontinuous basis functions is to solve advection-dominated problems.
+The problems we focus on here are not advection-dominated.
+All the same, these \emph{discontinuous Galerkin} (DG) methods will, as we show below, solve one of the thornier issues that we have to confront.
 To be consistent with the ideal problem, a DG method has to recover continuity in the limit as the mesh is refined.
 The \emph{symmetric interior penalty} discontinuous Galerkin (SIPDG) method is one type of scheme that provably achieves this goal.
 
@@ -315,31 +345,48 @@ There are several ways to derive SIPDG schemes.
 One approach is to apply Nitsche's method to every cell $\omega$ of the mesh.
 Where Nitsche's method was originally created in order to impose Dirichlet boundary conditions on the outer boundary of the whole domain, the SIPDG method instead uses the same idea but to enforce continuity.
 Leaving aside any boundary conditions for now, the objective functional we extremize is:
-\begin{align}
-    & G_\alpha(u, p) = \sum_\omega\int_\omega\left\{\frac{1}{2}\tau:\dot\varepsilon - p\nabla\cdot u - f\cdot u\right\}\mathrm d\omega \nonumber \\
-    & \qquad - \sum_\gamma\int_\gamma \left\langle\tau - pI \right\rangle: [u\otimes n]\,\mathrm d\gamma + \sum_\gamma\int_\gamma\frac{\alpha\mu}{2\lambda}|[u]|^2\mathrm d\gamma. \label{eq:sipdg-stokes-xyz}
-\end{align}
-With DG methods, we can use finite element bases that do not meet the continuity requirements of the problem.
-This feature is sometimes an advantage.
-Continuity and differentiability are recovered in the limit as the mesh is refined.
+\begin{subequations}
+    \label{eq:sipdg-stokes-xyz}
+    \begin{align}
+        G_\alpha(u, p) = & \sum_\omega\int_\omega\left\{\frac{1}{2}\tau:\dot\varepsilon - p\nabla\cdot u - f\cdot u\right\}\mathrm d\omega \\
+        & \qquad - \sum_\gamma\int_\gamma \left\langle\tau - pI \right\rangle: [u\otimes n]\,\mathrm d\gamma \label{eq:sipdg-stokes-xyz-flux} \\
+        & \qquad\qquad + \sum_\gamma\int_\gamma\frac{\alpha\mu|\gamma|}{2|\omega|}|[u]|^2\mathrm d\gamma. \label{eq:sipdg-stokes-xyz-penalty}
+    \end{align}
+\end{subequations}
+Here we have taken the length scale in the continuity penalty to be the volume-to-surface ratio $|\omega|/|\gamma|$ of the elements containing the facet $\gamma$.
 We can catch potential errors in the variational form by remembering that the DG facet fluxes should be the same if we swap which side of a facet is the ``$+$'' side and which is the ``$-$'' side.
 Figure \ref{fig:source-code-xyz} shows the source code for producing the free energy rate in Cartesian coordinates for both conforming and non-conforming elements.
-Although we have described the IPDG method via Nitsche's method, we can arrive at the same discretization from a conservation law with an appropriate choice of numerical flux \citep{cockburn2002local}.
+To add Dirichlet or slip boundary conditions, we add the same extra boundary integrals onto the end of equation \eqref{eq:sipdg-stokes-xyz} as in equations \eqref{eq:nitsche-dirichlet} and \eqref{eq:nitsche-slip} respectively.
+
+Here we've describe the IPDG method as an application of Nitsche's method, but we can arrive at the same scheme in more than one way.
+For example, \citet{cockburn2002local} derive interior penalty methods as a conservation law with a particular choice of numerical flux.
 
 We can also consider a form of the Stokes problem where the stress tensor is an additional unknown.
 This three-field form is more expensive, but it is the only solution when the constitutive relation is implicit \citep{farrell2020numerical}.
 Here our focus is on Newtonian fluids, but as we will see below, the velocity-pressure-stress form has advantages even in the Newtonian case when using terrain-following coordinates.
 The three-field form of the Stokes problem also has a minimization principle.
 The free energy dissipation rate is just the convex conjugate of the original primal form.
-This gives us the analogue of equation \eqref{eq:sipdg-stokes-tfc}:
-\begin{align}
-    G_\alpha^*(u, p, \tau) & = \int_\Omega\left\{\frac{1}{4\mu}|\tau|^2 - \tau :\dot\varepsilon(u) + p\nabla\cdot u + f\cdot u\right\}\mathrm d\omega \nonumber \\
-    & \qquad + \sum_\gamma\int_\gamma \left\langle\tau - pI \right\rangle: [u\otimes n]\,\mathrm d\gamma - \sum_\gamma\int_\gamma\frac{\alpha\mu}{2\lambda}|[u]|^2\mathrm d\gamma \label{eq:sipdg-stokes-dual-xyz}
-\end{align}
-Note how the sign on the facet fluxes and penalty has changed.
-This form of the problem assumes that the stresses are in $L^2(\Omega, \mathbb S)$ and the velocities in $H^1(\Omega, \mathbb{R}^d)$.
+This gives us the analogue of equation \eqref{eq:sipdg-stokes-xyz}:
+\begin{subequations}
+\label{eq:sipdg-stokes-dual-xyz}
+    \begin{align}
+        G_\alpha^*(u, p, \tau) = & \int_\Omega\left\{\frac{1}{4\mu}|\tau|^2 - \tau :\dot\varepsilon(u) + p\nabla\cdot u + f\cdot u\right\}\mathrm d\omega \\
+        & \qquad + \sum_\gamma\int_\gamma \left\langle\tau - pI \right\rangle: [u\otimes n]\,\mathrm d\gamma \\
+        & \qquad\qquad - \sum_\gamma\int_\gamma\frac{\alpha\mu|\gamma|}{2|\omega|}|[u]|^2\mathrm d\gamma
+    \end{align}
+\end{subequations}
+There are two features to note.
+In equation \eqref{eq:sipdg-stokes-xyz}, the stress tensor $\tau$ is to be substituted with $2\mu\dot\varepsilon(u)$.
+In the previous equation, $\tau$ is another independent variable and its relationship to the strain rate tensor is enforced in a variational sense.
+Second, the sign on the facet fluxes and penalty has changed.
+While the primal form in equation \eqref{eq:sipdg-stokes-xyz} is a saddle-point problem, the sign flip makes the dual form of equation \eqref{eq:sipdg-stokes-dual-xyz} a \emph{double-saddle} problem \citep{boffi2013mixed}.
+Each problem type demands different solution strategies.
+
+The form in equation \eqref{eq:sipdg-stokes-dual-xyz} assumes that the stresses are in $L^2(\Omega, \mathbb S)$ and the velocities in $H^1(\Omega, \mathbb{R}^d)$.
 This form is more common in the literature on implicit constitutive relations.
 In general it is more common to look for a stress in $H(\text{div})$ and a velocity in $L^2$.
+The reason to prefer a stress in $H(\text{div})$ is because it can give a more accurate approximation of the stress at the expense of a less accurate approximation for the velocity for the same number of degrees-of-freedom.
+For some applications that tradeoff is desirable.
 
 
 % -------------------------------------
@@ -371,7 +418,7 @@ One possibility is to use a fixed coordinate system and a moving mesh.
 The ice-flow modeling pacakge Elmer/ICE uses a Cartesian coordinate system and advects the mesh with the flow using an arbitrary Lagrangian-Eulerian scheme \citep{gagliardini2013capabilities}.
 Alternatively, one can use a fixed mesh and a moving coordinate system.
 The package SICOPOLIS uses terrain-following coordinates, described in \S5.7 of \citet{greve2009dynamics} and below.
-Finally, one can use a completely fixed mesh and coordinate system and use interface-tracking techniques such as the level-set method \citep{hossain2020modelling}.
+Finally, one can use a completely fixed mesh and coordinate system and use interface-tracking techniques such as the level-set or volume-of-fluid methods \citep{hossain2020modelling, gray2026variational}.
 \textcolor{red}{Check ISSM, PISM, BISICLES if we want to be exhaustive}.
 \textcolor{red}{This text is also very glaciology-biased and we should talk about geodynamics a bit.}
 Here we will pursue the approach of using a coordinate system that is fixed in the horizontal but moving in the vertical.
@@ -477,6 +524,18 @@ In short,
 Here there is a normalization factor in the denominator in order to ensure that $n_x$ has unit length.
 In the integrals we write down to express the Stokes problem, often this normalization factor in the denominator will cancel with the same factor in the numerator of a different expression.
 
+The formula in equation \eqref{eq:xform-normal} works in any curvilinear coordinate system.
+There are a few particular features of terrain-following coordinates that simplify the algebra.
+The computational domain is the Cartesian product of a 2D footprint and the unit interval, so the normal vectors $n_\xi$ are always either purely horizontal or vertical.
+On vertical facets, the normal vectors in Cartesian and terrain-following coordinates are the same.
+Applying equations \eqref{eq:xform-normal} and \eqref{eq:dxi-dx} to horizontal facets results in a cancellation of a factor of $h$ in both the numerator and denominator.
+Putting the two cases together, we get
+\begin{equation}
+    n_x = \begin{cases}n_\xi & \gamma\in\Gamma_V \\ \frac{(-\sigma^*, 1)}{\sqrt{1 + |\sigma|^2}} & \gamma\in\Gamma_H \end{cases}
+    \label{eq:xform-normal-tfc}
+\end{equation}
+where again $\Gamma_V$ are the vertical facets and $\Gamma_H$ the horizontal facets.
+
 \paragraph{Area elements.}
 While volume elements all transform by multiplication by a factor of $|\det J|$, surface area elements transform differently depending on their orientation.
 The general rule is
@@ -484,27 +543,33 @@ The general rule is
     d\gamma_x = |\det J|\cdot |n_\xi\,J^{-1}|\,d\gamma_\xi.
     \label{eq:xform-area}
 \end{equation}
-In our case, the facets will all be either horizontal or vertical in the terrain-following coordinate system.
-We can then make simplifications for the area element.
-We also note that many of the area integrals that we need to calculate include a factor of the unit normal vector.
-So the factor of $|n_\xi\,J^{-1}|$ in the area measure cancels with a factor of its reciprocal in the outward normal vector.
+We can simplify this general formula knowing that facets will always be either horizontal or vertical:
+\begin{equation}
+    |\det J|\cdot|n_\xi J^{-1}| = \begin{cases} h & \gamma \in \Gamma_V \\ \sqrt{1 + |\sigma|^2} & \gamma \in \Gamma_H \end{cases}
+\end{equation}
+where once again a factor of $h$ in the numerator and the denominator cancel out for the horizontal facets.
+Like the transformation rule for the element of volume, we can also sanity-check this expression by checking the physical units in each case.
+
+Most of the facet integrals that we need to calculate include a factor of the normal vector.
+On the horizontal facets, the factor of $\sqrt{1 + |\sigma|^2}$ in the last equation will then cancel out with its reciprocal in equation \eqref{eq:xform-normal-tfc}.
 
 \paragraph{Length scales.}
 Interior penalty methods require some length scale in order to penalize jumps across facets.
-Using the cell diameter is a reasonable choice if the mesh is isotropic.
-In our case, the meshes can be highly anisotropic.
-Here a better measure of the length scale is the cell volume divided by the facet area:
+In equation \eqref{eq:sipdg-stokes-xyz} we used the volume-to-surface ratio to set this length scale:
 \begin{equation}
     \lambda_x = \frac{|\omega_x|}{|\gamma_x|}
 \end{equation}
 where $|\omega_x|$, $|\gamma_x|$ are the volume and surface area of the cell and facet in Cartesian coordinates.
-This ratio gives a measure of the cell size normal to the face $\gamma$.
-It also has the virtue of being easy to approximate when the cells are curved, while the cell diameter is not.
+This ratio gives a measure of the cell size normal to the face $\gamma$ and tends to work better on anisotropic meshes.
 We can define the transformed length scale by combining the transformation rules for volumes and elements.
 Here a factor of $|\det J|$ in the numerator and denominator cancel:
 \begin{equation}
     \lambda_x = \frac{\cancel{|\det J|}|\omega_\xi|}{\cancel{|\det J|}|n_\xi\,J^{-1}||\gamma_\xi|} = \frac{|\omega_\xi|}{|n_\xi\,J^{-1}||\gamma_\xi|}
     \label{eq:xform-length-scale}
+\end{equation}
+This equation likewise simplifies by case analysis on the facet orientation:
+\begin{equation}
+    \lambda_x = \frac{|\omega_\xi|}{|\gamma_\xi|}\cdot \begin{cases}1 & \gamma\in\Gamma_V \\ \frac{h}{\sqrt{1 + |\sigma|^2}} & \gamma\in\Gamma_H\end{cases}.
 \end{equation}
 
 \paragraph{Divergences.}
@@ -613,7 +678,8 @@ def free_energy_rate(u, p, f, b, h):
 def free_energy_rate_facets(u, p, b, h):
     J, J_inv = coordinate_transformation_derivatives(b, h)
     n = firedrake.FacetNormal(mesh)
-    λ = firedrake.CellVolume(mesh) / firedrake.FacetArea(mesh)
+    da = inner(dot(n, J_inv), dot(n, J_inv))
+    λ = firedrake.CellVolume(mesh) * da / firedrake.FacetArea(mesh)
 
     Ju = dot(J, u)
     ε, τ = stress_strain_rate(u, b, h)
@@ -621,7 +687,7 @@ def free_energy_rate_facets(u, p, b, h):
     u_n = outer(Ju, dot(n, J_inv))
     G_stress_flux = -inner(avg(h * τ), u_n('+') + u_n('-')) * dS
     G_pressure_flux = avg(p) * jump(h * u, n) * dS
-    G_penalty = α * μ / (2 * avg(λ)) * inner(jump(Ju), jump(Ju)) * avg(h) * dS
+    G_penalty = α * μ * da / (2 * avg(λ)) * inner(jump(Ju), jump(Ju)) * avg(h) * dS
 
     return G_stress_flux + G_pressure_flux + G_penalty
 \end{lstlisting}
@@ -632,14 +698,17 @@ def free_energy_rate_facets(u, p, b, h):
 We can solve this problem with the interior penalty DG method.
 At a practical level, this amounts to applying the transformation rules of Table \ref{tab:xform-rules} to the DG facet corrections.
 The analogue of equation \eqref{eq:sipdg-stokes-xyz} in terrain-following coordinates is then
-\begin{align}
-    G_\alpha(u, p) & = \sum_\omega\int_\omega\left\{\frac{1}{2}h\tau:\dot\varepsilon - p\nabla\cdot(h u) - hf\cdot J^*Ju\right\}\ud\omega \nonumber \\
-    & \qquad - \sum_\gamma\int_\gamma\left\{\left\langle \tau\right\rangle:[Ju\otimes n\,J^{-1}] + \langle p\rangle[u\cdot n] \right\}h\ud\gamma \nonumber \\
-    & \quad\qquad + \sum_\gamma\int_\gamma\frac{\alpha\mu}{2\lambda}|[Ju]|^2\,h\ud\gamma
+\begin{subequations}
     \label{eq:sipdg-stokes-tfc}
-\end{align}
+    \begin{align}
+        G_\alpha(u, p) & = \sum_\omega\int_\omega\left\{\frac{1}{2}h\tau:\dot\varepsilon - p\nabla\cdot(h u) - hf\cdot J^*Ju\right\}\ud\omega \\
+        & \qquad - \sum_\gamma\int_\gamma\left\{\left\langle \tau\right\rangle:[Ju\otimes n\,J^{-1}] + \langle p\rangle[u\cdot n] \right\}h\ud\gamma \\
+        & \quad\qquad + \sum_\gamma\int_\gamma\frac{\alpha\mu|\gamma|}{2|\omega|}\,|nJ^{-1}|^2\,|[Ju]|^2\,h\ud\gamma
+    \end{align}
+\end{subequations}
 where again $\tau = 2\mu\dot\varepsilon$ and the strain rate tensor in terrain-following coordinates is defined in equation \eqref{eq:strain-rate-tfc}.
-We have simplified the expression above beyond what we would obtain by naively applying all of the transformation rules by cancelling out factors of $|n\,J^{-1}|$ that appear in both the numerator and the denominator of an integrand.
+We have simplified the expression above beyond what we would obtain by naively applying all of the transformation rules.
+In the facet flux term, we can cancel out factors of $|n\,J^{-1}|$ that appear in both the numerator and the denominator of an integrand.
 
 Equation \eqref{eq:sipdg-stokes-tfc} is the key result of this paper.
 To our knowledge it has not appeared before in the literature.
@@ -653,12 +722,14 @@ As long as we (1) use the contravariant components of the velocity field in the 
 But if we are willing to accept the added complexity of DG facet terms, then we may as well use a DG basis.
 
 The functional to be minimized for the velocity-pressure-stress form is again derivable as the convex conjugate of the corresponding primal form:
-\begin{align}
-    G_\alpha^*(u, p, \tau) & = \sum_\omega\int_\omega\left\{\frac{1}{4\mu}h|\tau|^2 - h\tau:\dot\varepsilon + p\nabla\cdot(h u) + hf\cdot J^*Ju\right\}\ud\omega \nonumber \\
-    & \qquad + \sum_\gamma\int_\gamma\left\{\left\langle h\tau\right\rangle:[Ju\otimes n\,J^{-1}] + \langle p\rangle[hu\cdot n] \right\}\ud\gamma \nonumber \\
-    & \quad\qquad - \sum_\gamma\int_\gamma\frac{\alpha\mu}{2|\gamma|}|[Ju]|^2\, \langle h\rangle\ud\gamma
+\begin{subequations}
     \label{eq:sipdg-stokes-dual-tfc}
-\end{align}
+    \begin{align}
+        G_\alpha^*(u, p, \tau) & = \sum_\omega\int_\omega\left\{\frac{1}{4\mu}h|\tau|^2 - h\tau:\dot\varepsilon + p\nabla\cdot(h u) + hf\cdot J^*Ju\right\}\ud\omega \\
+        & \qquad + \sum_\gamma\int_\gamma\left\{\left\langle\tau\right\rangle:[Ju\otimes n\,J^{-1}] + \langle p\rangle[u\cdot n] \right\}\,h\ud\gamma \\
+        & \quad\qquad - \sum_\gamma\int_\gamma\frac{\alpha\mu|\gamma|}{2|\omega|}\,|nJ^{-1}|^2\,|[Ju]|^2\,h\ud\gamma
+    \end{align}
+\end{subequations}
 \textcolor{red}{Check that we can make the integrand a polynomial}.
 
 The source code to produce the free energy rate for the Stokes equations in terrain-following coordinates with both conforming and non-conforming elements is shown in Figure \ref{fig:source-code-tfc}.
