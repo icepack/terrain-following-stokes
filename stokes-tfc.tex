@@ -35,6 +35,7 @@
     extendedchars=true,
     breaklines=true,
     literate=
+    {δ}{{\ensuremath{\updelta}}}1
     {ε}{{\ensuremath{\upvarepsilon}}}1
     {τ}{{\ensuremath{\uptau}}}1
     {μ}{{\ensuremath{\upmu}}}1
@@ -268,12 +269,16 @@ def free_energy_rate_facets(u, p, α):
     I = firedrake.Identity(dim)
     ε, τ = stress_strain_rate(u)
     u_n = outer(u, n)
-    G_flux = -inner(avg(τ - p * I), u_n('-') + u_n('-')) * dS
-    G_penalty = α * μ / (2 * avg(λ)) * inner(jump(u), jump(u)) * dS
+    δu = u_n('+') + u_n('-')
+    G_flux = -inner(avg(τ - p * I), δu) * dS
+    G_penalty = α * μ / (2 * avg(λ)) * inner(δu, δu) * dS
 
     return G_flux + G_penalty
 \end{lstlisting}
-\caption{Source code to produce the free energy dissipation rate for the Stokes equations in Cartesian coordinates using both conforming and non-conforming finite elements.}
+\caption{Source code to produce the free energy dissipation rate for the Stokes equations in Cartesian coordinates using Firedrake.
+    The function \texttt{free\_energy\_rate} gives the dissipation rate for a conforming discretization and corresponds to equation \eqref{eq:sipdg-stokes-xyz-cells}.
+    The function \texttt{free\_energy\_rate\_facets} gives the facet corrections for interior penalty methods and corresponds to equations \eqref{eq:sipdg-stokes-xyz-flux} and \eqref{eq:sipdg-stokes-xyz-penalty}.
+}
 \label{fig:source-code-xyz}
 \end{figure}
 
@@ -313,15 +318,20 @@ The Nitsche functional is
     G_\alpha(u, p) = G(u, p) - \sum_{\gamma\in\Gamma_D}\int_\gamma(\tau - pI) : n\otimes(u - u_\Gamma)\mathrm d\gamma + \sum_{\gamma\in\Gamma_D}\int_\gamma\frac{\alpha\mu}{2\lambda}|u - u_\Gamma|^2\mathrm d\gamma.
     \label{eq:nitsche-dirichlet}
 \end{equation}
-Here $\lambda$ is a measure of the local facet diameter and $\alpha$ is a dimensionless constant related to the mesh regularity.
 The integrals are again over all mesh facets that are contained in the segment $\Gamma_D$ of the domain boundary where the velocity should be fixed to $u_\Gamma$.
+The second term, which we refer to as the facet flux, is what makes Nitsche's method work better than the penalty method.
+Here $\lambda$ is a measure of the local facet diameter.
+In the following, we will take $\lambda$ to be equal to the volume-to-surface ratio $|\omega|/|\gamma|$ of cell containing $\gamma$.
+This choice works especially better for anisotropic meshes than, for example, the diameter of $\gamma$.
+The constant $\alpha$ is dimensionless and can be chosen explicitly based on the problem dimension and the degree of the finite element basis \citep{warburton2003constants}.
 Finding a minimizer of the functional in equation \eqref{eq:nitsche-dirichlet} solves the original problem and boundary conditions up to discretization error without having to modify the linear system.
 
-So Nitsche's method offers another way to enforce Dirichlet boundary conditions, but one could argue about its utility since we can always modify the linear system.
-For slip boundary conditions, on the other hand, Nitsche's method is the \emph{only} way.
+So Nitsche's method offers another way to enforce Dirichlet boundary conditions, but one could argue what value it brings since we can always modify the linear system.
+For slip boundary conditions, on the other hand, Nitsche's method is the \emph{only} principled solution.
 It is not possible to satisfy the normal-flow condition \eqref{eq:normal-flow-bc} exactly when using continuous Galerkin finite elements for the velocity on a curved surface.
-The velocity has degrees of freedom at the vertices, while the normal is defined on facets and not even well-defined at vertices.
-The conventional approach of modifying the linear system is not available for this type of boundary condition.
+The normal vector is defined on facets but is not well-defined at mesh vertices.
+Meanwhile, velocity has degrees of freedom at the vertices for most of the common finite element bases that are used in practice.
+So the conventional approach of modifying the linear system is not available for this type of boundary condition.
 We can instead use Nitsche's method to enforce the normal-flow condition approximately:
 \begin{equation}
     G_\alpha(u, p) = G(u, p) - \sum_{\gamma\in\Gamma_R}\int_\gamma n\cdot(\tau - pI)n\,(u\cdot n)\mathrm d\gamma + \sum_{\gamma\in\Gamma_R}\int_\gamma\frac{\alpha\mu}{2\lambda}(u\cdot n)^2\mathrm d\gamma + \sum_{\gamma\in\Gamma_R}\int_\gamma\frac{\kappa}{2}|(I - n\otimes n)u|^2\mathrm d\gamma
@@ -348,13 +358,18 @@ Leaving aside any boundary conditions for now, the objective functional we extre
 \begin{subequations}
     \label{eq:sipdg-stokes-xyz}
     \begin{align}
-        G_\alpha(u, p) = & \sum_\omega\int_\omega\left\{\frac{1}{2}\tau:\dot\varepsilon - p\nabla\cdot u - f\cdot u\right\}\mathrm d\omega \\
+        G_\alpha(u, p) = & \sum_\omega\int_\omega\left\{\frac{1}{2}\tau:\dot\varepsilon - p\nabla\cdot u - f\cdot u\right\}\mathrm d\omega \label{eq:sipdg-stokes-xyz-cells} \\
         & \qquad - \sum_\gamma\int_\gamma \left\langle\tau - pI \right\rangle: [u\otimes n]\,\mathrm d\gamma \label{eq:sipdg-stokes-xyz-flux} \\
-        & \qquad\qquad + \sum_\gamma\int_\gamma\frac{\alpha\mu|\gamma|}{2|\omega|}|[u]|^2\mathrm d\gamma. \label{eq:sipdg-stokes-xyz-penalty}
+        & \qquad\qquad + \sum_\gamma\int_\gamma\frac{\alpha\mu|\gamma|}{2|\omega|}|[u\otimes n]|^2\mathrm d\gamma. \label{eq:sipdg-stokes-xyz-penalty}
     \end{align}
 \end{subequations}
-Here we have taken the length scale in the continuity penalty to be the volume-to-surface ratio $|\omega|/|\gamma|$ of the elements containing the facet $\gamma$.
-We can catch potential errors in the variational form by remembering that the DG facet fluxes should be the same if we swap which side of a facet is the ``$+$'' side and which is the ``$-$'' side.
+Here we have explicitly written the length scale in the penalty term as the volume-to-surface ratio.
+The other distinguishing feature to notice is in the penalty term.
+Here we've used $|[u\otimes n]|^2$ as the penalty.
+This expression is mathematically equal to $|[u]|^2$, which is simpler.
+We've included the factor of the normal vector because it makes equation \eqref{eq:sipdg-stokes-xyz-penalty} transform in a more favorable way in curvilinear coordinates.
+It also generalizes more naturally to anisotropic viscous fluids like liquid crystals or to nonlinear rheologies.
+
 Figure \ref{fig:source-code-xyz} shows the source code for producing the free energy rate in Cartesian coordinates for both conforming and non-conforming elements.
 To add Dirichlet or slip boundary conditions, we add the same extra boundary integrals onto the end of equation \eqref{eq:sipdg-stokes-xyz} as in equations \eqref{eq:nitsche-dirichlet} and \eqref{eq:nitsche-slip} respectively.
 
@@ -372,7 +387,7 @@ This gives us the analogue of equation \eqref{eq:sipdg-stokes-xyz}:
     \begin{align}
         G_\alpha^*(u, p, \tau) = & \int_\Omega\left\{\frac{1}{4\mu}|\tau|^2 - \tau :\dot\varepsilon(u) + p\nabla\cdot u + f\cdot u\right\}\mathrm d\omega \\
         & \qquad + \sum_\gamma\int_\gamma \left\langle\tau - pI \right\rangle: [u\otimes n]\,\mathrm d\gamma \\
-        & \qquad\qquad - \sum_\gamma\int_\gamma\frac{\alpha\mu|\gamma|}{2|\omega|}|[u]|^2\mathrm d\gamma
+        & \qquad\qquad - \sum_\gamma\int_\gamma\frac{\alpha\mu|\gamma|}{2|\omega|}|[u\otimes n]|^2\mathrm d\gamma
     \end{align}
 \end{subequations}
 There are two features to note.
@@ -678,20 +693,24 @@ def free_energy_rate(u, p, f, b, h):
 def free_energy_rate_facets(u, p, b, h):
     J, J_inv = coordinate_transformation_derivatives(b, h)
     n = firedrake.FacetNormal(mesh)
-    da = inner(dot(n, J_inv), dot(n, J_inv))
-    λ = firedrake.CellVolume(mesh) * da / firedrake.FacetArea(mesh)
+    λ = firedrake.CellVolume(mesh) / firedrake.FacetArea(mesh)
 
     Ju = dot(J, u)
     ε, τ = stress_strain_rate(u, b, h)
 
     u_n = outer(Ju, dot(n, J_inv))
-    G_stress_flux = -inner(avg(h * τ), u_n('+') + u_n('-')) * dS
+    δu = u_n('+') + u_n('-')
+    G_stress_flux = -inner(avg(τ), δu) * avg(h) * dS
     G_pressure_flux = avg(p) * jump(h * u, n) * dS
-    G_penalty = α * μ * da / (2 * avg(λ)) * inner(jump(Ju), jump(Ju)) * avg(h) * dS
+    G_penalty = α * μ / (2 * avg(λ)) * inner(δu, δu) * avg(h) * dS
 
     return G_stress_flux + G_pressure_flux + G_penalty
 \end{lstlisting}
-\caption{Python source code to form the free energy dissipation rate for the Stokes equations in terrain-following coordinates.}
+\caption{
+    Python source code to form the free energy dissipation rate for the Stokes equations in terrain-following coordinates shown in equation \eqref{eq:sipdg-stokes-tfc}.
+    The structure is the same as the code in Figure \ref{fig:source-code-xyz} for Cartesian coordinates.
+    The key differences are a few extra factors of $h$ and some added bookkeeping to multiply by $J$ or $J^{-1}$.
+}
 \label{fig:source-code-tfc}
 \end{figure}
 
@@ -702,13 +721,13 @@ The analogue of equation \eqref{eq:sipdg-stokes-xyz} in terrain-following coordi
     \label{eq:sipdg-stokes-tfc}
     \begin{align}
         G_\alpha(u, p) & = \sum_\omega\int_\omega\left\{\frac{1}{2}h\tau:\dot\varepsilon - p\nabla\cdot(h u) - hf\cdot J^*Ju\right\}\ud\omega \\
-        & \qquad - \sum_\gamma\int_\gamma\left\{\left\langle \tau\right\rangle:[Ju\otimes n\,J^{-1}] + \langle p\rangle[u\cdot n] \right\}h\ud\gamma \\
-        & \quad\qquad + \sum_\gamma\int_\gamma\frac{\alpha\mu|\gamma|}{2|\omega|}\,|nJ^{-1}|^2\,|[Ju]|^2\,h\ud\gamma
+        & \qquad - \sum_\gamma\int_\gamma\left\{\left\langle \tau\right\rangle:[Ju\otimes n\,J^{-1}] + \langle p\rangle[u\cdot n] \right\}h\ud\gamma \label{eq:sipdg-stokes-tfc-flux} \\
+        & \quad\qquad + \sum_\gamma\int_\gamma\frac{\alpha\mu|\gamma|}{2|\omega|}|[Ju\otimes nJ^{-1}]|^2\,h\ud\gamma \label{eq:sipdg-stokes-tfc-penalty}
     \end{align}
 \end{subequations}
 where again $\tau = 2\mu\dot\varepsilon$ and the strain rate tensor in terrain-following coordinates is defined in equation \eqref{eq:strain-rate-tfc}.
 We have simplified the expression above beyond what we would obtain by naively applying all of the transformation rules.
-In the facet flux term, we can cancel out factors of $|n\,J^{-1}|$ that appear in both the numerator and the denominator of an integrand.
+In equations \eqref{eq:sipdg-stokes-tfc-flux} and \eqref{eq:sipdg-stokes-tfc-penalty}, we can cancel out factors of $|n\,J^{-1}|$ that appear in both the numerator and the denominator.
 
 Equation \eqref{eq:sipdg-stokes-tfc} is the key result of this paper.
 To our knowledge it has not appeared before in the literature.
@@ -727,7 +746,7 @@ The functional to be minimized for the velocity-pressure-stress form is again de
     \begin{align}
         G_\alpha^*(u, p, \tau) & = \sum_\omega\int_\omega\left\{\frac{1}{4\mu}h|\tau|^2 - h\tau:\dot\varepsilon + p\nabla\cdot(h u) + hf\cdot J^*Ju\right\}\ud\omega \\
         & \qquad + \sum_\gamma\int_\gamma\left\{\left\langle\tau\right\rangle:[Ju\otimes n\,J^{-1}] + \langle p\rangle[u\cdot n] \right\}\,h\ud\gamma \\
-        & \quad\qquad - \sum_\gamma\int_\gamma\frac{\alpha\mu|\gamma|}{2|\omega|}\,|nJ^{-1}|^2\,|[Ju]|^2\,h\ud\gamma
+        & \quad\qquad - \sum_\gamma\int_\gamma\frac{\alpha\mu|\gamma|}{2|\omega|}|[Ju\otimes nJ^{-1}]|^2\,h\ud\gamma
     \end{align}
 \end{subequations}
 \textcolor{red}{Check that we can make the integrand a polynomial}.

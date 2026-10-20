@@ -63,56 +63,39 @@ def cell_free_energy_rate(**kwargs):
 
 
 def facet_free_energy_rate(**kwargs):
-    u, p, ε, τ, b, h, J, _, n, mesh = _get_fields(**kwargs)
+    u, p, ε, τ, b, h, J, J_inv, n, mesh = _get_fields(**kwargs)
 
     d = mesh.geometric_dimension
     α = Constant(kwargs.get("penalty", 100.0))
     μ = Constant(kwargs["viscosity"])
 
-    def facet_form(n, γ, λ, dS, ds_d, ds_r):
-        Ju = dot(J, u)
-        u_n = outer(Ju, n)
-        traction = -inner(avg(τ), u_n("+") + u_n("-")) * avg(γ) * dS
-        pressure = avg(p) * jump(Ju, n) * avg(γ) * dS
-        penalty = α * μ / (2 * avg(λ)) * inner(jump(Ju), jump(Ju)) * avg(γ) * dS
-        form = traction + pressure + penalty
-
-        # Dirichlet boundary terms
-        dtraction = -inner(τ, u_n) * γ * ds_d
-        dpressure = p * inner(Ju, n) * γ * ds_d
-        dpenalty = α * μ / (2 * λ) * inner(Ju, Ju) * γ * ds_d
-        form += dtraction + dpressure + dpenalty
-
-        # Robin boundary terms
-        rtraction = -inner(n, dot(τ, n)) * inner(Ju, n) * γ * ds_r
-        rpressure = p * inner(Ju, n) * γ * ds_r
-        rpenalty = α * μ / (2 * λ) * inner(Ju, n)**2 * γ * ds_r
-        form += rtraction + rpressure + rpenalty
-
-        return form
-
-    # Facet area weighting terms γ
-    σ = coordinate_surface_slope(b, h)
-    γ_h = sqrt(1 + inner(σ, σ))
-    γ_v = h
-
-    # Length scales λ for continuity penalty
     λ = firedrake.CellVolume(mesh) / firedrake.FacetArea(mesh)
-    λ_h = h * λ / γ_h
-    λ_v = λ
+    Ju = dot(J, u)
+    u_n = outer(Ju, dot(n, J_inv))
+    δu = u_n("+") + u_n("-")
 
-    # Normal vectors
-    ν_h = Constant([0] * (d - 1) + [1,]) - σ
-    n_h = inner(ν_h, n) / sqrt(inner(ν_h, ν_h)) * ν_h
-    n_v = n
+    traction = -inner(avg(τ), δu) * avg(h) * (dS_h + dS_v)
+    pressure = avg(p) * jump(u, n) * avg(h) * (dS_h + dS_v)
+    penalty = α * μ / (2 * avg(λ)) * inner(δu, δu) * avg(h) * (dS_h + dS_v)
+    facet_form = traction + pressure + penalty
 
-    # Facet and  boundary measures
     dirichlet_ids = kwargs.get("dirichlet_ids", ())
-    robin_ids = kwargs.get("robin_ids", ())
+    ds_d = ds_h(dirichlet_ids) + ds_v(dirichlet_ids)
+    dtraction = -inner(τ, u_n) * h * ds_d
+    dpressure = p * inner(u, n) * h * ds_d
+    dpenalty = α * μ / (2 * λ) * inner(u_n, u_n) * h * ds_d
+    dirichlet_form = dtraction + dpressure + dpenalty
 
-    hform = facet_form(n_h, γ_h, λ_h, dS_h, ds_h(dirichlet_ids), ds_h(robin_ids))
-    vform = facet_form(n_v, γ_v, λ_v, dS_v, ds_v(dirichlet_ids), ds_v(robin_ids))
-    return hform + vform
+    robin_ids = kwargs.get("robin_ids", ())
+    ds_r = ds_h(robin_ids) + ds_v(robin_ids)
+    ν = dot(n, J_inv)
+    τ_nn = inner(ν, dot(τ, ν)) / inner(ν, ν)
+    rtraction = -τ_nn * inner(u, n) * h * ds_r
+    rpressure = p * inner(u, n) * h * ds_r
+    rpenalty = α * μ / (2 * λ) * inner(u, n)**2 * h * ds_r
+    robin_form = rtraction + rpressure + rpenalty
+
+    return facet_form + dirichlet_form + robin_form
 
 
 def free_energy_rate(**kwargs):
