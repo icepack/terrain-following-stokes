@@ -694,6 +694,32 @@ The source code to produce the free energy rate for the Stokes equations in terr
 The function \texttt{free\_energy\_rate\_facets} computes the facet corrections to the free energy rate that are associated with discontinuous elements.
 We add this facet correction for all elements (continuous and discontinuous) when the thickness is discretized.
 
+The final missing piece is what to do about slip boundary conditions.
+We can again proceed by a rote application of the transformation rules to the extra terms in equation \eqref{eq:nitsche-slip}.
+For the no-penetration penalty, the algebra works out in such a way that the factors of $|nJ^{-1}|$ all cancel out.
+For the flux term, the algebra does not work out as cleanly.
+These terms translate to:
+\begin{subequations}
+    \begin{align}
+        G_\alpha(u, p) = & \ldots - \sum_{\gamma\in\Gamma_R}\int_\gamma\left(\frac{n\cdot J^{-1}\tau J^{-*}n}{|nJ^{-1}|^2} - p\right)u\cdot n\; h\ud\gamma \label{eq:robin-tfc-flux}\\
+        & \qquad + \sum_{\gamma\in\Gamma_R}\int_\gamma\frac{\alpha\mu|\gamma|}{2|\omega|}(u\cdot n)^2\, h\ud\gamma \\
+        & \qquad\quad + \sum_{\gamma\in\Gamma_R}\int_\gamma\frac{\kappa}{2}\left|\left(I - \frac{nJ^{-1}\otimes nJ^{-1}}{|nJ^{-1}|^2}\right)u\right|^2|nJ^{-1}|\,h\ud\gamma \label{eq:robin-tfc-slip}
+    \end{align}
+\end{subequations}
+Here it is simpler to specialize to horizontal and vertical facets.
+Define $\nu = (-\sigma^*, 1)$ to be the normal vector to horizontal facets.
+Then
+\begin{subequations}
+    \begin{align}
+        \text{equation \eqref{eq:robin-tfc-flux}} & = -\sum_{\gamma\in\Gamma_H\cap\Gamma_R}\int_\gamma\left(\frac{\nu^*\tau\nu}{|\nu|^2} - p\right)u\cdot n\,h\ud\gamma + \sum_{\gamma\in\Gamma_V\cap\Gamma_R}\int_\gamma\left(n^*\tau n - p\right)u\cdot n\,h\ud\gamma \\
+        \text{equation \eqref{eq:robin-tfc-slip}} & = \sum_{\gamma\in\Gamma_H\cap\Gamma_R}\int_\gamma\frac{\kappa}{2}\left|\left(I - \frac{\nu\otimes\nu}{|\nu|^2}\right)u\right|^2|\nu|h\ud\gamma + \sum_{\gamma\in\Gamma_V\cap\Gamma_R}\int_\gamma\frac{\kappa}{2}\left|(I - n\otimes n)u\right|^2h\ud\gamma
+    \end{align}
+\end{subequations}
+Specializing to horizontal and vertical facets simplifies out several terms that look like $h / h$.
+Moreover, slip boundary conditions are usually only applied at the ice base and therefore on horizontal facets.
+We can then leave off any terms for slip boundary conditions on vertical facets.
+
+
 
 % ----------------------
 \section{Implementation}
@@ -954,7 +980,8 @@ There is a middle ground where one instead uses div-conforming bases like Raviar
 These bases guarantee exact element-wise mass conservation.
 The best that other bases can guarantee is mass conservation in an average sense \citep{cockburn2007note}.
 The catch when using equation \eqref{eq:sipdg-stokes-tfc} is that the divergence operator now includes a factor of $h$.
-Obtaining an div-conforming discretization with this different definition of the divergence would require significant modification, for example by working with $hu$ as the main unknown instead of $u$.
+Obtaining a div-conformity with a different divergence operator would require significant modification.
+One possibility would be working with $hu$ as the main unknown instead of $u$, but we would then need to rework the form of the equations.
 Finally, the stability and convergence theory for most finite element bases assumes that the cells of the mesh are shape-regular.
 Certain particular choices of finite element basis still work well even when the mesh is highly anisotropic.
 We did not investigate these elements here and instead carefully chose the horizontal and vertical resolution together.
