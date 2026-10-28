@@ -1,10 +1,17 @@
+import argparse
 import tqdm
 import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
 import firedrake
 
 
-with firedrake.CheckpointFile("perlin.h5", "r") as chk:
+parser = argparse.ArgumentParser()
+parser.add_argument("--input", type=str, default="perlin.h5")
+parser.add_argument("--output", type=str, default="perlin.mp4")
+args = parser.parse_args()
+
+
+with firedrake.CheckpointFile(args.input, "r") as chk:
     num_steps = chk.h5pyfile.attrs["num_steps"]
     mesh = chk.load_mesh(name="domain")
     b = chk.load_function(mesh, name="bed")
@@ -37,4 +44,4 @@ def animate(z):
     return line,
 
 animation = FuncAnimation(fig, animate, tqdm.tqdm(zs), interval=1e3/24, blit=True)
-animation.save("perlin-glacier.mp4")
+animation.save(args.output)
