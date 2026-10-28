@@ -724,11 +724,19 @@ We can then leave off any terms for slip boundary conditions on vertical facets.
 % ----------------------
 \section{Implementation}
 
-We use the Firedrake package to discretize the problem \citep{rathgeber2016firedrake}.
+We use the finite element modeling package Firedrake to discretize the problem \citep{rathgeber2016firedrake}.
 A valuable feature for simulating thin-film flows is the ability to create tensor product meshes and elements.
 The kernels for assembling stiffness matrices and load vectors can be optimized specifically for tensor product meshes in a way that is not available on general unstructured meshes \citep{mcrae2016automated}.
 In all test cases, we use LU factorization in order to be sure that any errors are due to the discretization and not to a poorly-tuned iterative solver.
 The penalty parameters $\alpha$ in the SIPDG methods are all chosen according to the explicit lower bound from \citep{warburton2003constants}.
+
+We use the Irksome package for timestepping \citep{farrell2021irksome}.
+The Unified Form Language used in Firedrake and FEniCS was designed only to express the spatial part of a partial differential equation, leaving the end user to implement timestepping.
+Irksome extends the Unified Form Language with time derivatives in order to express evolution equations.
+From this specification, Irksome then generates all of the low-level code to implement implicit Runge-Kutta methods.
+These schemes are often considered too difficult to implement for practical use.
+As we argue below, Irksome makes using higher-order implicit schemes no more difficult than using backward Euler.
+The problems that we consider here are all dissipative, so we focus on the Radau-IIA family of methods, which are absolutely stable.
 
 \begin{figure}
     \includegraphics[width=0.98\linewidth]{demo/testing/flowchart.pdf}
@@ -834,10 +842,26 @@ As a ``smoke test'', we consider relaxation of a sinusoidal surface based on the
 We used a no-slip condition on the bottom of the domain, free-slip conditions on the side walls, and no stress on the surface.
 The parameters for the simulation are described in \textcolor{red}{Table X}.
 For the numerical scheme, we use DQ${}_2$ elements for the velocity, DQ${}_1$ elements for the pressure, and CG${}_1$ elements for the thickness.
-We used a backward Euler timestepping scheme and solve the coupled mass and momentum balance equations all at once.
 
-The simulations converge with all timesteps up to the maximum duration.
-Figure \ref{fig:relaxation} shows the evolution of the fluid surface with a timestep of 0.5 years.
+The simulation runs for 20 years.
+First we compare a splitting scheme with an implicit scheme.
+We implement the splitting scheme by lagging the thickness in the momentum balance equation.
+The velocity is calculated using the thickness from the previous timestep, while the thickness is updated using this newly-computed velocity.
+The alternative is a fully-implicit backward Euler scheme where we simultaneously solve the mass and momentum balance equations.
+The splitting scheme is only stable for timesteps smaller than 1/16 year.
+The implicit scheme remains stable for all timesteps, even up to 20 years.
+Figure \ref{fig:relaxation} shows the evolution of the fluid surface with a timestep of 1/2 year.
+With these timesteps, the splitting scheme takes 10 times longer to run to completion than the fully implicit scheme.
+The implicit scheme with a timestep of 1/2 year required 2 Newton iterations for every step.
+When we increased the timestep to 20 years, the simulation required only one additional Newton iteration to converge.
+
+Finally, we tested the Radau-IIA(2) timestepping scheme.
+The backward Euler method is the lowest-order instance of the Radau-IIA family.
+The Radau-IIA schemes are collocation methods that are of maximal order subject to the constraint that the right endpoint of the interval is a collocation point.
+The k-stage Radau-IIA scheme is of order $2k - 1$ and its stability region contains the entire left half of the complex plane, i.e. it is A-stable.
+We tested the Radau-IIA scheme with timesteps of 1 year.
+The first step required 3 Newton iterations and every subsequent timestep required 2.
+Like backward Euler, the Radau-IIA(2) also converged in 3 Newton iterations with a timestep of 20 years.
 
 \subsection{Perlin glacier}
 

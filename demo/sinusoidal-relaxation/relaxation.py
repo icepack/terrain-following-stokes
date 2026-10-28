@@ -1,6 +1,7 @@
 r"""Relaxation of a sinusoidal surface; experiment from Ahlkrona et al. 2026"""
 
 import argparse
+import sys
 import numpy as np
 from numpy import pi as π
 import tqdm
@@ -12,8 +13,9 @@ from zetastokes import cartesian, terrain_following
 
 
 parser = argparse.ArgumentParser()
-parser.add_argument("--splitting", action="store_true")
-parser.add_argument("--method", choices=["euler", "radau"])
+parser.add_argument("--lag-u", action="store_true")
+parser.add_argument("--lag-h", action="store_true")
+parser.add_argument("--method", choices=["euler", "radau"], default="euler")
 parser.add_argument("--final-time", type=float, default=20.0)
 parser.add_argument("--num-steps", type=int, default=40)
 parser.add_argument("--output", default="relaxation")
@@ -52,8 +54,6 @@ def initial_surface(x, *, mean_thickness, amplitude, length, **kwargs):
     return H + δ * firedrake.cos(π * x / L)
 
 
-timesteps = np.array([0.001, 0.005, 0.01, 0.05, 0.1, 0.5, 1, 2.5, 5, 10, 20])
-
 # Set up the mesh and function spaces
 nx, nz = 50, 5
 interval = firedrake.IntervalMesh(nx, constants["length"])
@@ -89,7 +89,12 @@ params = {
     "penalty": 2 * degree * (degree + 1),
     "viscosity": constants["viscosity"],
 }
-fields = {"velocity": u, "pressure": p, "thickness": h, "bed": b}
+fields = {
+    "velocity": u,
+    "pressure": p,
+    "thickness": irksome.lag(h) if args.lag_h else h,
+    "bed": b,
+}
 # TODO: Find out what boundary conditions Alkhrona et al. used. At the least
 # we should have free slip along the side walls but the bed could be either no
 # slip or friction.
@@ -99,8 +104,9 @@ G = terrain_following.free_energy_rate(**fields, **params, **boundary_data)
 v, q, φ = firedrake.TestFunctions(Z)
 F_momentum = expand_derivatives(derivative(G, u, v) + derivative(G, p, q))
 
-fields = {"velocity": irksome.lag(u) if args.splitting else u, "thickness": h}
+fields = {"velocity": irksome.lag(u) if args.lag_u else u, "thickness": h}
 F_mass = terrain_following.thickness_equation(**fields)
+
 F = F_momentum + F_mass
 
 # Do an initial solve of the momentum balance equation by itself in order to
@@ -139,6 +145,6 @@ with firedrake.CheckpointFile(f"{args.output}.h5", "w") as chk:
             chk.h5pyfile.attrs["num_steps"] = step
             chk.h5pyfile.attrs["final_time"] = step * timestep
             chk.h5pyfile.attrs["success"] = False
-            raise error
+            sys.exit(0)
 
     chk.h5pyfile.attrs["success"] = True
