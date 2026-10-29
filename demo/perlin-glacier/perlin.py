@@ -1,8 +1,9 @@
 r"""Spin-up of a glacier with random bed topography; experiment from Ahlkrona
 et al. 2026"""
 
+import sys
+import argparse
 import numpy as np
-from scipy.interpolate import CubicHermiteSpline
 import tqdm
 import firedrake
 from firedrake import Constant, derivative, inner, dot, dx, ds_b
@@ -12,6 +13,16 @@ from zetastokes.terrain_following import (
     free_energy_rate, thickness_equation, coordinate_transformation_derivatives
 )
 import noise
+
+
+parser = argparse.ArgumentParser()
+parser.add_argument("--degree", type=int, default=2)
+parser.add_argument("--num-xcells", type=int, default=500)
+parser.add_argument("--num-zcells", type=int, default=5)
+parser.add_argument("--timestep", type=float, default=1.0)
+parser.add_argument("--method", choices=["euler", "radau"], default="euler")
+parser.add_argument("--output", default="perlin.h5")
+args = parser.parse_args()
 
 
 sec_per_year = 365.25 * 24 * 60 * 60
@@ -43,13 +54,12 @@ sparams = {
 
 
 # Set up the mesh and function spaces
-nx, nz = 500, 5
+nx, nz = args.num_xcells, args.num_zcells
 interval = firedrake.IntervalMesh(nx, constants["length"])
 mesh = firedrake.ExtrudedMesh(interval, nz, name="domain")
 
-degree = 2
-u_element = firedrake.FiniteElement("DQ", "quadrilateral", degree)
-p_element = firedrake.FiniteElement("DQ", "quadrilateral", degree - 1)
+u_element = firedrake.FiniteElement("DQ", "quadrilateral", args.degree)
+p_element = firedrake.FiniteElement("DQ", "quadrilateral", args.degree - 1)
 V = firedrake.VectorFunctionSpace(mesh, u_element)
 Q = firedrake.FunctionSpace(mesh, p_element)
 
@@ -80,7 +90,7 @@ u, p, h = firedrake.split(z)
 params = {
     "density": constants["density"],
     "gravity": constants["gravity"],
-    "penalty": 4 * (degree + 1) ** 2,
+    "penalty": 4 * (args.degree + 1) ** 2,
     "viscosity": constants["viscosity"],
 }
 fields = {"velocity": u, "pressure": p, "thickness": h, "bed": b}
@@ -95,7 +105,7 @@ G = (
 v, q, φ = firedrake.TestFunctions(Z)
 F_momentum = expand_derivatives(derivative(G, u, v) + derivative(G, p, q))
 
-pparams = {"form_compiler_parameters": {"quadrature_degree": 4 * degree}}
+pparams = {"form_compiler_parameters": {"quadrature_degree": 4 * args.degree}}
 F_initial = F_momentum + (h - h_initial) * φ * dx
 firedrake.solve(F_initial == 0, z, **pparams, **sparams)
 
@@ -128,15 +138,16 @@ lower.sub(2).assign(h_min)
 bounds = ("stage", lower, upper)
 bparams = {"stage_type": "value", "basis_type": "Bernstein", "bounds": bounds}
 
-method = irksome.BackwardEuler()
+methods = {"euler": irksome.BackwardEuler(), "radau": irksome.RadauIIA(2)}
+method = methods[args.method]
 t = Constant(0.0)
-timestep = 1.0
+timestep = args.timestep
 final_time = 400.0
 num_steps = int(final_time / timestep)
 dt = Constant(timestep)
 solver = irksome.TimeStepper(F, method, t, dt, z, **pparams, **sparams, **bparams)
 
-with firedrake.CheckpointFile("perlin.h5", "w") as chk:
+with firedrake.CheckpointFile(args.output, "w") as chk:
     chk.h5pyfile.attrs["num_steps"] = num_steps + 1
     chk.h5pyfile.attrs["final_time"] = final_time
     chk.save_mesh(mesh)
@@ -147,8 +158,8 @@ with firedrake.CheckpointFile("perlin.h5", "w") as chk:
             solver.advance()
             a.interpolate(a_expr)
             chk.save_function(z, name="solution", idx=step + 1)
-        except firedrake.ConvergenceError as error:
+        except firedrake.ConvergenceError:
             print(f"Crashed at step {step}!")
             chk.h5pyfile.attrs["num_steps"] = step
             chk.h5pyfile.attrs["final_time"] = step * timestep
-            raise error
+            sys.exit(0)
