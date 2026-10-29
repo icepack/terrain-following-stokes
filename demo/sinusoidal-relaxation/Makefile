@@ -4,6 +4,7 @@ all: relaxation.h5 relaxation-splitting.h5 relaxation-radau.h5
 relaxation.h5 relaxation.log &: relaxation.py
 	python relaxation.py --output relaxation --num-steps 40
 	python relaxation.py --output relaxation-n1 --num-steps 1
+	python relaxation.py --output relaxation-nx100 --num-cells 100
 
 relaxation-splitting.h5 relaxation-splitting.log &: relaxation.py
 	python relaxation.py --output relaxation-splitting --lag-h --num-steps 320

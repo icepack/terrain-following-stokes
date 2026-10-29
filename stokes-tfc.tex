@@ -842,6 +842,7 @@ As a ``smoke test'', we consider relaxation of a sinusoidal surface based on the
 We used a no-slip condition on the bottom of the domain, free-slip conditions on the side walls, and no stress on the surface.
 The parameters for the simulation are described in \textcolor{red}{Table X}.
 For the numerical scheme, we use DQ${}_2$ elements for the velocity, DQ${}_1$ elements for the pressure, and CG${}_1$ elements for the thickness.
+We used a mesh with 50 elements in the horizontal and 5 in the vertical.
 
 The simulation runs for 20 years.
 First we compare a splitting scheme with an implicit scheme.
@@ -855,13 +856,17 @@ With these timesteps, the splitting scheme takes 10 times longer to run to compl
 The implicit scheme with a timestep of 1/2 year required 2 Newton iterations for every step.
 When we increased the timestep to 20 years, the simulation required only one additional Newton iteration to converge.
 
-Finally, we tested the Radau-IIA(2) timestepping scheme.
+Next, we tested the Radau-IIA(2) timestepping scheme.
 The backward Euler method is the lowest-order instance of the Radau-IIA family.
 The Radau-IIA schemes are collocation methods that are of maximal order subject to the constraint that the right endpoint of the interval is a collocation point.
 The k-stage Radau-IIA scheme is of order $2k - 1$ and its stability region contains the entire left half of the complex plane, i.e. it is A-stable.
 We tested the Radau-IIA scheme with timesteps of 1 year.
 The first step required 3 Newton iterations and every subsequent timestep required 2.
 Like backward Euler, the Radau-IIA(2) also converged in 3 Newton iterations with a timestep of 20 years.
+
+Finally, we ran a simulation with double the number of elements in both directions.
+If the number of the number of Newton iterations increases as the mesh is refined, then the method might fail to be scalable.
+We found that every step required 2 Newton iterations on the refined mesh as well.
 
 \subsection{Perlin glacier}
 

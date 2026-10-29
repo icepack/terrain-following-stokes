@@ -15,6 +15,7 @@ from zetastokes import cartesian, terrain_following
 parser = argparse.ArgumentParser()
 parser.add_argument("--lag-u", action="store_true")
 parser.add_argument("--lag-h", action="store_true")
+parser.add_argument("--num-cells", type=int, default=50)
 parser.add_argument("--method", choices=["euler", "radau"], default="euler")
 parser.add_argument("--final-time", type=float, default=20.0)
 parser.add_argument("--num-steps", type=int, default=40)
@@ -55,7 +56,8 @@ def initial_surface(x, *, mean_thickness, amplitude, length, **kwargs):
 
 
 # Set up the mesh and function spaces
-nx, nz = 50, 5
+nx = args.num_cells
+nz = nx // 10
 interval = firedrake.IntervalMesh(nx, constants["length"])
 mesh = firedrake.ExtrudedMesh(interval, nz, name="domain")
 
