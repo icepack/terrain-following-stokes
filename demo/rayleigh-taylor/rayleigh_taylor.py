@@ -1,3 +1,4 @@
+import argparse
 import numpy as np
 from numpy import pi as π
 import tqdm
@@ -11,6 +12,17 @@ from zetastokes.terrain_following import (
 )
 
 
+parser = argparse.ArgumentParser()
+parser.add_argument("--degree", type=int, default=1)
+parser.add_argument("--timestep", type=float, default=50.0)
+parser.add_argument("--final-time", type=float, default=24e3)
+parser.add_argument("--method", choices=["euler", "radau"], default="euler")
+parser.add_argument("--num-cells", type=int, default=50)
+parser.add_argument("--atol", type=float, default=1e-9)
+parser.add_argument("--output", type=str, default="rayleigh-taylor.h5")
+args = parser.parse_args()
+
+
 sec_per_year = 365.25 * 24 * 60 * 60
 
 constants = {
@@ -22,7 +34,6 @@ constants = {
     "density": 3.2e3,                                # kg / meter^3
     "delta_density": 100,
     "gravity": 9.81 / 1e9 * 1e3,                     # so ρg is in GPa / km
-    "final_time": 3200,                              # millennia
 }
 
 
@@ -33,6 +44,7 @@ sparams = {
         "mat_mumps_icntl_7": 5,
         "mat_mumps_icntl_14": 100,
         "snes_stol": 0.0,
+        "snes_atol": args.atol,
         "snes_monitor": None,
     },
 }
@@ -48,7 +60,7 @@ def initial_density(x, z):
     return firedrake.conditional(z <= Z, ρ_0, ρ_0 + δρ)
 
 
-nx = 50
+nx = args.num_cells
 nz = int(constants["thickness"] / constants["length"] * nx)
 interval = firedrake.IntervalMesh(nx, constants["length"])
 mesh = firedrake.ExtrudedMesh(interval, nz, name="domain")
@@ -64,7 +76,7 @@ r = firedrake.FiniteElement("R", "interval", 0)
 h_element = firedrake.TensorProductElement(cg1, r)
 H = firedrake.FunctionSpace(mesh, h_element)
 
-ρ_element = firedrake.FiniteElement("DQ", "quadrilateral", 1)
+ρ_element = firedrake.FiniteElement("DQ", "quadrilateral", args.degree)
 R = firedrake.FunctionSpace(mesh, ρ_element)
 x, ζ = firedrake.SpatialCoordinate(mesh)
 z = Constant(constants["thickness"]) * ζ
@@ -109,17 +121,18 @@ cfl_time = δx / u_max
 print(f"CFL time: {cfl_time} ka")
 
 # Step the model forward in time
-method = irksome.BackwardEuler()
+methods = {"euler": irksome.BackwardEuler(), "radau": irksome.RadauIIA(2)}
+method = methods[args.method]
 t = Constant(0.0)
-timestep = 5.0
+timestep = args.timestep
 dt = Constant(timestep)
 solver = irksome.TimeStepper(F, method, t, dt, z, **pparams, **sparams)
 
 zs = [z.copy(deepcopy=True)]
-num_steps = int(constants["final_time"] / timestep)
-with firedrake.CheckpointFile("rayleigh-taylor.h5", "w") as chk:
+num_steps = int(args.final_time / timestep)
+with firedrake.CheckpointFile(args.output, "w") as chk:
     chk.save_mesh(mesh)
-    chk.h5pyfile.attrs["final_time"] = constants["final_time"]
+    chk.h5pyfile.attrs["final_time"] = args.final_time
     chk.save_function(z, name="solution", idx=0)
     try:
         for step in tqdm.trange(num_steps):
