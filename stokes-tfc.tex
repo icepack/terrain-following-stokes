@@ -434,7 +434,7 @@ We show all the transformation rules and the transformed Stokes equations in the
 All of the transformation rules described below are summarized in Table \ref{tab:xform-rules}.
 
 
-\subsection{Transformation rules}
+\subsection{Transformation rules}\label{subsec:xform-rules}
 
 The explicit expression in equation \eqref{eq:explicit-tfc} for the transformation from terrain-following to Cartesian coordinates will let us also transform vector and tensor fields and their derivatives.
 First, we'll introduce a vector field
@@ -721,45 +721,110 @@ We can then leave off any terms for slip boundary conditions on vertical facets.
 
 \subsection{Scalar advection}
 
-For both geodynamics and glaciology applications, we also need to solve transport equations for density, temperature, or other fields.
-For now we will ignore diffusion.
-The general conservation form of a transport equation for a scalar field $\phi$ is
-\begin{equation}
-    \frac{\mathrm d}{\mathrm dt}\int_\omega\phi\ud\omega + \int_{\partial\omega}\phi(u - v)\cdot n\ud\gamma = \int_\omega f\ud\omega
-\end{equation}
-for all control volumes $\omega$, where $v$ is the rate at which the boundary of $\omega$ is moving and $f$ are the sources.
-Whether we use Cartesian coordinates and a moving mesh or time-evolving curvilinear coordinates on a fixed mesh, the velocity $v$ of the control volume is non-zero.
-
-The equivalent variational form of this problem and boundary conditions is
-\begin{subequations}
-    \begin{align}
-        0 & = \int_\Omega\left\{\frac{\partial\phi}{\partial t}\psi - \phi(u - v)\cdot\nabla\psi - f\psi\right\}\,\mathrm d\omega \\
-        & \qquad + \int_{\partial\Omega}\phi\left\{(u - v)\cdot n\right\}_+\psi\ud\gamma \\
-        & \qquad\quad + \int_{\partial\Omega}\phi_{\text{in}}\left\{(u - v)\cdot n\right\}_-\psi\ud\gamma
-    \end{align}
-\end{subequations}
-for all test functions $\psi$, where the $+$ subscript denotes the positive part and the $-$ subscript the negative part, and $\phi_{\text{in}}$ are the values of $\phi$ on the inflow boundary.
-
-The transformation rules that we wrote above all assumed that the problem was time-independent.
+For simulations in both geodynamics and glaciology, we need to solve transport equations for density, temperature, or other fields.
+The transformation rules that we wrote in \S\ref{subsec:xform-rules} all assumed that the problem was time-independent.
 For evolution equations, we now have to confront the fact that taking a derivative with respect to $t$ keeping $x_3$ fixed is not the same as taking a derivative with $\xi_3$ fixed.
-But we can proceed along similar lines as before by taking the 0th coordinate to be time; the analogue of equation \eqref{eq:explicit-tfc} is
+The physical surfaces of constant $\xi_3$ are not just curved; they are also evolving in time.
+We could painstakingly derive the right transformation rules for time derivatives.
+But there is a shortcut.
+
+We can write down relatively clean equations by thinking of all integrals and differential operators in spacetime.
+Viewed in this light, an equation of the form $\partial_t\{\cdots\} + \nabla\cdot\{\cdots\} = \cdots$ that looks like a time derivative plus a spatial divergence is really one big divergence in spacetime.
+This perspective will be familiar to anyone who has studied relativity.
+It is less common for geophysical problems but the detour will save us so much algebra as to be worth it.
+A natural approach will be to then use \emph{Galerkin-in-time} schemes, which take the test function to depend on time as well as space.
+We can then recover more familiar-looking equations in space and time separately.
+For readers wanting to skip all the derivations, the end results are equation \eqref{eq:transport-tfc} for the variational form and equation \eqref{eq:transport-tfc-strong} for the strong form.
+
+Concretely, we take the 0th coordinate to be time.
+The analogue of equation \eqref{eq:explicit-tfc} is
 \begin{equation}
     \left[\begin{matrix}x_0 \\ x_1 \\ x_2 \\ x_3\end{matrix}\right] = \left[\begin{matrix}\xi_0 \\ \xi_1 \\ \xi_2 \\ b(\xi_0, \xi_1, \xi_2) + \xi_3h(\xi_0, \xi_1, \xi_2)\end{matrix}\right].
     \label{eq:explicit-tfct}
 \end{equation}
-Equations \eqref{eq:slope-field} and \eqref{eq:dx-dxi} are all identical provided that we interpret the gradient operator as a gradient in spacetime.
+We can now use all the formulas from \S\ref{subsec:xform-rules} verbatim as long as we interpret the gradient operator and normal vector in spacetime.
+Equations \eqref{eq:slope-field} and \eqref{eq:dx-dxi} are identical.
 Now $J$ is a $d + 1 \times d + 1$-dimensional matrix instead of $d \times d$, where $d$ is the space dimension.
-The volume transformation factor in spacetime is still just $h$.
+The volume transformation factor in spacetime is $|\det J|$ but because of the particular form of the deformation matrix in terrain-following coordinates this is still equal to $h$.
 
-Rather than painstakingly derive the transformation of the time derivative, we can recognize that the transport equation is a divergence in spacetime.
-Divergences transform by picking up a factor $|\det J|$ under the derivative and its reciprocal outside, so the variational form becomes
+We will use a boldface symbol $\boldsymbol{\nabla}$ for a spacetime gradient and a regular weight symbol $\nabla$ for space alone.
+With these conventions, if $\phi$ is a scalar field, then
+\begin{equation}
+    \boldsymbol{\nabla}\phi = \left[\begin{matrix}\frac{\partial}{\partial t}\phi \\ \nabla\phi\end{matrix}\right].
+\end{equation}
+Suppose we were working with a transport equation
+\begin{equation}
+    \frac{\partial}{\partial t}\phi + \nabla\cdot \phi w = f
+    \label{eq:transport}
+\end{equation}
+where $w$ is the transport velocity.
+(It will be clear in a moment why we use a different symbol $w$ for the transport velocity.)
+by introducing the 4-vector
+\begin{equation}
+    q = \left[\begin{matrix}\phi \\ \phi w\end{matrix}\right]
+\end{equation}
+we can succinctly write down the transport equation in spacetime as
+\begin{equation}
+    \boldsymbol{\nabla}\cdot q = f
+    \label{eq:4div}
+\end{equation}
+using the space-time divergence operator $\boldsymbol{\nabla}\cdot$.
+We will write $q_t$ and $q_x$ for the temporal and spatial parts of a spacetime vector where we need to refer to them separately.
+
+Let $\psi$ be a test function which depends on both space and time.
+We can discretize the conservation law of equation \eqref{eq:4div} in the usual way: multiply by $\psi$, integrate over the entire domain in space and time, and push the divergence over from $q$ onto $\psi$.
+The boundary terms we get in doing so include both a spatial contribution \eqref{eq:4div-form-xboundary} along the boundary of $\Omega$ and a temporal contribution \eqref{eq:4div-form-tboundary} from the start and endpoints of the time interval.
+The resulting variational form is
 \begin{subequations}
     \begin{align}
-        0 & = \int_\Omega\left\{\frac{\partial}{\partial t}(h\phi)\cdot\psi - h\phi(u_\xi - v_\xi)\cdot\nabla_\xi\psi - hf\psi\right\}\,\mathrm d\omega_\xi \\
-        & \qquad + \int_{\partial\Omega}h\phi\left\{(u_\xi - v_\xi)\cdot n_\xi\right\}_+\frac{\psi}{|nJ^{-1}|}\mathrm d\gamma_\xi \\
-        & \qquad\quad + \int_{\partial\Omega}h\phi_{\text{in}}\left\{(u_\xi - v_\xi)\cdot n_\xi\right\}_-\frac{\psi}{|nJ^{-1}|}\mathrm d\gamma_\xi
+        0 & = -\iint\limits_{\Omega\times[t_1, t_2]}q\cdot\boldsymbol{\nabla}\psi\ud\omega\ud t \label{eq:4div-form-cells} \\
+        & \qquad + \iint\limits_{\partial\Omega\times[t_1, t_2]}q_x\cdot n\,\psi\ud\gamma\ud t \label{eq:4div-form-xboundary}\\
+        & \qquad\quad + \int_\Omega q_t\psi\ud\omega\Bigg|_{t_2} - \int_\Omega q_t\psi\ud\omega\Bigg|_{t_1} \label{eq:4div-form-tboundary}
     \end{align}
 \end{subequations}
+For the particular case of the transport equation \eqref{eq:transport}, we can unpack this into the more familiar form
+\begin{subequations}
+    \label{eq:transport-git}
+    \begin{align}
+        0 & = -\iint\limits_{\Omega\times[t_1, t_2]}\left(\phi\frac{\partial\psi}{\partial t} + \phi w\cdot\nabla\psi\right)\ud\omega\ud t \\
+        & \qquad + \iint\limits_{\partial\Omega\times[t_1, t_2]}\phi w\cdot n\,\psi\ud\gamma\ud t \\
+        & \qquad\quad + \int_\Omega \phi\psi\ud\omega\Bigg|_{t_2} - \int_\Omega \phi\psi\ud\omega\Bigg|_{t_1}
+    \end{align}
+\end{subequations}
+From here, we arrive at the right conditions on the inflow and outflow boundary by segmenting $\partial\Omega$ according to where $w\cdot n$ is positive or negative.
+Where this inner product is negative, we have to know the inflow values $\phi_{\text{in}}$.
+
+We almost have enough information to write down the transport equation in curvilinear coordinates.
+The essential detail that helps us get this correct is the observation that $q$ transforms as a vector and $\boldsymbol{\nabla}\psi$ transforms as a covector in equation \eqref{eq:4div-form-cells}.
+When we switch to a curvilinear coordinate system, $q$ picks up a factor of $J$ and $\boldsymbol{\nabla}\psi$ picks up a factor of $J^{-1}$.
+The deformation matrix and its inverse cancel out.
+The major change is an extra factor of $h$ inside the integrand from the element of volume.
+
+There is one extra effect we have to account for.
+The transport velocity consists not just of the velocity of a fluid parcel in the chosen coordinate system, but also the velocity of the coordinate system itself.
+This amounts to considering the case where a control volume is changing in time in the Reynolds transport theorem.
+This extra motion of the control volume is a factor whether we use Cartesian coordinates and a moving mesh or time-evolving curvilinear coordinates on a fixed mesh.
+The correct course is to take
+\begin{equation}
+    w = u - v,
+    \label{eq:transport-velocity}
+\end{equation}
+i.e. the velocity in a fixed reference frame, in equation \eqref{eq:transport-git}.
+
+We get the variational form in curvilinear coordinates by applying the transformation rules of \S\ref{subsec:xform-rules} to the Cartesian form \eqref{eq:transport-git} together with the transport velocity \eqref{eq:transport-velocity}:
+\begin{subequations}
+    \label{eq:transport-tfc}
+    \begin{align}
+        0 & = -\iint\limits_{\Omega\times[t_1,t_2]}\left\{h\phi\frac{\partial\psi}{\partial t} + h\phi(u_\xi - v_\xi)\cdot\nabla_\xi\psi + hf\psi\right\}\,\mathrm d\omega_\xi\ud t \\
+        & \qquad + \iint\limits_{\partial\Omega\times[t_1,t_2]}h\left\{\phi\left[(u_\xi - v_\xi)\cdot n_\xi\right]_+ + \phi_{\text{in}}\left[(u_\xi - v_\xi)\cdot n_\xi\right]_- \right\}\frac{\psi}{|nJ^{-1}|}\mathrm d\gamma_\xi \\
+        & \qquad\qquad + \int_\Omega h\phi\psi\ud\omega_\xi\Bigg|_{t_2} - \int_\Omega h\phi\psi\ud\omega_\xi\Bigg|_{t_1}.
+    \end{align}
+\end{subequations}
+Here we have separated the inflow and outflow terms in the spatial boundary integral.
+From here, we can use the usual calculus rules to push the time derivative back from $\psi$ over onto $h\phi$ and eliminate the temporal boundary terms.
+This step would get us back to a more conventional spatial variational form for a time-dependent problem.
+The conceptual advantage of our approach is that it makes it as clear as possible why there is a factor of $h$ under a time derivative.
+
 We still need to determine what the velocity of the coordinate system is.
 For the problems we describe below, only the thickness is changing in time while the bed is fixed.
 Keeping in mind that we have to write this expression in the curvilinear coordinate system itself, the velocity is
@@ -767,9 +832,18 @@ Keeping in mind that we have to write this expression in the curvilinear coordin
     v_\xi = \xi_3h^{-1}\frac{\partial h}{\partial t}\hat{\mathbf e}_3.
 \end{equation}
 In other words, the coordinate system only moves in the vertical direction; it doesn't move at all at the bottom of the domain; and it moves with the change in surface height at the surface.
-
 As we describe below, the implementation is particularly simple with the Irksome package.
 We do not need to expand the expression for $\partial h/\partial t$ but rather we can add this time derivative directly to another equation and it will be expanded for us.
+
+Finally, we observe that the strong form of equation \eqref{eq:transport-tfc} is
+\begin{equation}
+    \frac{\partial}{\partial t}h\phi + \nabla\cdot\{h(u - v)\phi\} = hf.
+    \label{eq:transport-tfc-strong}
+\end{equation}
+The major change is a few factors of $h$.
+It is common to write this strong form out with several more terms; for an example, see equation (14) in \citet{anderson2016modeling}.
+The two forms of the transport equation are mathematically equivalent.
+Our equation \eqref{eq:transport-tfc-strong} is shorter and we argue that it is more obvious at a glance that it is a conservation law.
 
 
 % ----------------------
@@ -1076,6 +1150,13 @@ A handful of papers have derived the Navier-Stokes equations in time-dependent c
 \citet{warsi1981conservation} derived both conservation and differential forms of the Navier-Stokes equations in curvilinear coordinates in a way that avoids Christoffel symbols.
 \citet{yang1994general} built on this to simulate fluid flow in curved geometries using the finite volume method.
 We are not aware of any papers that looked at a variational form or discretization via finite elements.
+
+We also derived the form of the transport equation for density, chemical species, or another conserved scalar field in curvilinear coordinates.
+It is common to derive transformed evolution equations in strong form through painstaking application of the chain rule.
+Instead, we showed how to derive a variational form in spacetime and to then work backwords to a more familiar equation.
+This derivation could seem unusual but it does avoid messy algebra.
+We argue that avoiding messy algebra is not just an aesthetic preference.
+Shorter equations are easier to translate into code and to check against analytical solutions.
 
 There are several problems that this work does not address: nonlinearity, divergence-conforming or anisotropic finite elements, and solver strategies.
 
