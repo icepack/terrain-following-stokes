@@ -1,3 +1,4 @@
+import argparse
 import numpy as np
 from numpy import pi as π
 import tqdm
@@ -11,6 +12,15 @@ from zetastokes.terrain_following import (
 )
 
 
+parser = argparse.ArgumentParser()
+parser.add_argument("--timestep", type=float, default=5.0)
+parser.add_argument("--final-time", type=float, default=3.2e3)
+parser.add_argument("--method", choices=["euler", "radau"], default="euler")
+parser.add_argument("--num-cells", type=int, default=50)
+parser.add_argument("--output", type=str, default="rayleigh-taylor.h5")
+args = parser.parse_args()
+
+
 sec_per_year = 365.25 * 24 * 60 * 60
 
 constants = {
@@ -22,7 +32,6 @@ constants = {
     "density": 3.2e3,                                # kg / meter^3
     "delta_density": 100,
     "gravity": 9.81 / 1e9 * 1e3,                     # so ρg is in GPa / km
-    "final_time": 3200,                              # millennia
 }
 
 
@@ -48,7 +57,7 @@ def initial_density(x, z):
     return firedrake.conditional(z <= Z, ρ_0, ρ_0 + δρ)
 
 
-nx = 50
+nx = args.num_cells
 nz = int(constants["thickness"] / constants["length"] * nx)
 interval = firedrake.IntervalMesh(nx, constants["length"])
 mesh = firedrake.ExtrudedMesh(interval, nz, name="domain")
@@ -109,17 +118,18 @@ cfl_time = δx / u_max
 print(f"CFL time: {cfl_time} ka")
 
 # Step the model forward in time
-method = irksome.BackwardEuler()
+methods = {"euler": irksome.BackwardEuler(), "radau": irksome.RadauIIA(2)}
+method = methods[args.method]
 t = Constant(0.0)
-timestep = 5.0
+timestep = args.timestep
 dt = Constant(timestep)
 solver = irksome.TimeStepper(F, method, t, dt, z, **pparams, **sparams)
 
 zs = [z.copy(deepcopy=True)]
-num_steps = int(constants["final_time"] / timestep)
-with firedrake.CheckpointFile("rayleigh-taylor.h5", "w") as chk:
+num_steps = int(args.final_time / timestep)
+with firedrake.CheckpointFile(args.output, "w") as chk:
     chk.save_mesh(mesh)
-    chk.h5pyfile.attrs["final_time"] = constants["final_time"]
+    chk.h5pyfile.attrs["final_time"] = args.final_time
     chk.save_function(z, name="solution", idx=0)
     try:
         for step in tqdm.trange(num_steps):
