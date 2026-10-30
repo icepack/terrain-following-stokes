@@ -921,7 +921,7 @@ Again, the number of Newton iterations was roughly the same as the default case.
 Finally, we used the 2-stage Radau-IIA scheme.
 Here we found that the number of Newton iterations was consistently higher than for backward Euler, with a maximum of 9.
 It is possible that the number of iterations could be reduced by first computing a backward Euler solution and then linearly interpolating to the Radau-IIA collocation points in the interior.
-
+The relative differences in the fluid thickness and terminus position in steady state between the configurations are less than 1/100.
 
 \subsection{Rayleigh-Taylor instability}
 
@@ -965,13 +965,18 @@ The fix for this problem is making a good choice of units.
 \section{Discussion}
 
 We presented a reformulation of the Stokes equations in terrain-following coordinates and showed how to discretize the problem with the discontinuous Galerkin finite element method.
+This approach goes beyond existing work in the literature on computational fluid dynamics and offers a few advantages.
+The most significant advantages are overcoming the drunken sailor instability and providing a clear path to applying higher-order timestepping schemes.
+
 Several previous works have used terrain-following coordinates for ice flow modeling.
 \citet{kleiner2014numerical} is the closest in spirit to this work.
 They used a higher-order ice flow model with a transformed coordinate system but discretized the problem using the finite difference method.
 \citet{greve2009dynamics} describe the the implementation of the ice-flow model SICOPOLIS, which also uses a finite difference discretization in terrain-following coordinates but focuses more on the shallow ice approximation.
-Our approach differs from both of these in a few respects.
+Our approach differs from both of these in that (1) we worked with the contravariant components of the velocity vector, (2) we used the full Stokes equations, and (3) we used the finite element method rather than the finite difference method.
 
-First, we elected to work with the contravariant components of the velocity vector in the curvilinear coordinate system rather than the Cartesian velocities.
+The velocity vector has an existence independent of the reference frame, but to do computations we have to write it out in components.
+In a curvilinear coordinate system there are several choices to make about which components \citep{yang1994general}.
+We elected to work with the contravariant components of the velocity vector in the curvilinear coordinate system rather than the Cartesian velocities as is done in e.g. SICOPOLIS.
 \citet{greve2009dynamics} state in \S5.7.2:
 \begin{displayquote}
     Note that, while applying the sigma transformation, we have not attempted to write the velocity vector $\mathbf v$ in components of the curvilinear, transformed coordinates.
@@ -980,49 +985,69 @@ First, we elected to work with the contravariant components of the velocity vect
 \end{displayquote}
 The transformed equations that we use do have extra factors of $J$.
 We had to use special techniques in order to discretize the problem because of these extra terms.
-We argue that working directly with the contravariant components of the velocity in the non-orthogonal coordinate system has advantages.
-The main advantage is in prescribing the top and bottom boundary conditions.
+The equations would indeed become too complicated to implement if we were to write out every component of the stress tensor and the momentum balance equation.
+But we were able to avoid a great deal of messy algebra by working at the level of vector and tensor fields rather than their individual components.
+
+We argue that working directly with the contravariant components of the velocity in the non-orthogonal coordinate system also has advantages.
+The main benefit is in prescribing the top and bottom boundary conditions.
 The Cartesian vertical component of the ice velocity at the surface or bed of a glacier does not completely prescribe the mass balance rate.
 Instead, we need to also know the surface and bed slope and the other components of the velocity vector.
 In contravariant terrain-following coordinates, however, the vertical component of the velocity times the thickness is exactly equal to the mass balance rate.
-Moreover, the horizontal contravariant components of the velocity are exactly equal to the sliding velocity and can thus be used directly to implement the sliding boundary condition.
-Implementing sliding boundary conditions in Cartesian coordinates involves additional work.
+Implementing the normal-flow boundary condition in Cartesian coordinates involves additional work.
 For example, the Elmer/ICE package used an ad hoc procedure to define the unit outward normal vector at the mesh vertices \citep{gagliardini2013capabilities} before implementing another approach based on Nitsche's method \citep{cheng2020full}.
 Implementing boundary conditions correctly is one of the most common sources of error in numerical discretization of differential equations.
 We argue that using the contravariant components of the velocity more directly corresponds with physical intuition about the vertical velocity and makes errors in the boundary conditions less likely.
 
-Second, where both \citet{greve2009dynamics} and \citet{kleiner2014numerical} use a finite difference discretization, we used a discontinuous Galerkin finite element method.
+Where both \citet{greve2009dynamics} and \citet{kleiner2014numerical} use a finite difference discretization, we used a discontinuous Galerkin finite element method.
 Implementing the finite element method from scratch is arguably more involved than the finite difference method.
 New software tools such as Firedrake and UFL significantly reduce the gap in complexity.
 The modeler only has to correctly prescribe a variational form rather than write low-level computational kernels for finite element assembly.
 
-Several papers in the computational fluid dynamics have used the language of Riemannian geometry to describe flow in evolving curved geometries, for example \citet{luo2004contravariant}.
+Using terrain-following coordinates provides an easy path toward applying implicit timestepping schemes, including higher-order methods like Radau-IIA.
+We showed in the sinusoidal relaxation problem that implicit methods are not as susceptible to the drunken sailor instability.
+We regard this feature as one of the major benefits of terrain-following coordinates.
+\citet{ahlkrona2026fully} also used fully-implicit schemes for free-surface Stokes flow.
+They solved the nonlinear system of equations for the velocity and the surface through a nonlinear Gauss-Seidel iteration.
+This scheme alternates between the Stokes and free-surface solves until convergence.
+They used this strategy to implement both a backward differentiation formula and the Crank-Nicholson scheme.
+A critical element of this approach was the addition of an augmented free-surface stabilization term, which they derive by hand through Taylor expansion of the discrete problem, over and above the usual stabilization.
+This extra stabilization (equation (19) of \citet{ahlkrona2026fully}) helps to guarantee that the surface sub-step of the Gauss-Seidel iteration remains stable even for long timesteps.
+On the other hand, we were able to apply a higher-order timestepping scheme ``out of the box'' with no extra terms in the variational form.
+
+Several papers in computational fluid dynamics have used Riemannian geometry to describe flow in evolving curved geometries, for example \citet{luo2004contravariant}.
 Here the outlook is just as bad as for curvilinear coordinates discretized with finite elements.
 We need derivatives of the Riemannian metric (the Christoffel symbols) in order to calculate the covariant derivative of the velocity.
 The Riemannian metric, like the deformation matrix $J$, is discontinuous across cell boundaries if we discretize with finite elements.
-We have instead avoided Riemannian geometry for two reasons.
+We chose to avoid Riemannian geometry for two reasons.
 First, the language is highly technical and will be unfamiliar to many earth scientists.
-Second, as shown above, we can rescue the situation with curvilinear coordinates using DG schemes.
-A handful of papers have derived the Navier-Stokes equations in time-dependent curvilinear coordinates but without Christoffel symbols.
+Second, as shown above, we can use DG schemes to confront the continuity problems associated to curvilinear coordinates.
+A handful of papers have derived the Navier-Stokes equations in time-dependent curvilinear coordinates without Christoffel symbols.
 \citet{warsi1981conservation} derived both conservation and differential forms of the Navier-Stokes equations in curvilinear coordinates in a way that avoids Christoffel symbols.
 \citet{yang1994general} built on this to simulate fluid flow in curved geometries using the finite volume method.
 We are not aware of any papers that looked at a variational form or discretization via finite elements.
 
-There are several problems that this work does not address.
+There are several problems that this work does not address: nonlinearity, divergence-conforming or anisotropic finite elements, and solver strategies.
+
 First, we focus here on linear problems.
 Many earth materials are plastic, pseudoplastic, or have some other non-Newtonian constitutive law.
 A straightforward extension of equation \eqref{eq:sipdg-stokes-tfc} to nonlinear constitutive relations may or may not be possible depending on the form of the non-linearity.
-Second, we focused here completely discontinuous finite elements.
+
+Second, we focused here on conventional families of discontinuous finite elements.
 There is a middle ground where one instead uses div-conforming bases like Raviart-Thomas or Brezzi-Douglas-Marini.
 These bases guarantee exact element-wise mass conservation.
 The best that other bases can guarantee is mass conservation in an average sense \citep{cockburn2007note}.
 The catch when using equation \eqref{eq:sipdg-stokes-tfc} is that the divergence operator now includes a factor of $h$.
-Obtaining a div-conformity with a different divergence operator would require significant modification.
+Obtaining divergence-conformity with a different divergence operator would require significant modification.
 One possibility would be working with $hu$ as the main unknown instead of $u$, but we would then need to rework the form of the equations.
-Finally, the stability and convergence theory for most finite element bases assumes that the cells of the mesh are shape-regular.
-Certain particular choices of finite element basis still work well even when the mesh is highly anisotropic.
-We did not investigate these elements here and instead carefully chose the horizontal and vertical resolution together.
-These techniques will be much more effective on typical problems in the earth sciences if they can be made robust to small aspect ratio.
+Additionally, the stability and convergence theory for most finite element bases assumes that the cells of the mesh are shape-regular.
+Certain choices of finite element basis still work well even when the mesh is highly anisotropic.
+We did some testing of how well a standard discretization performed with a smaller aspect ratio but did not take this to extremes.
+These techniques will be much more effective on typical problems in the earth sciences if they can be made robust to extremely small aspect ratio.
+
+Finally, we used standard Newton methods with a line search and direct factorization of the associated linear systems.
+Nonlinear preconditioning could significantly reduce the cost burden of higher-order timestepping schemes.
+The simplest approach would be to interpolate an initial backward Euler solution as a first guess at the values of a Radau-IIA solution at other collocation points.
+
 These issues and others will be the subject of future work.
 
 \pagebreak
