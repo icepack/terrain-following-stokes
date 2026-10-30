@@ -1,10 +1,17 @@
+import argparse
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
 import firedrake
 
 
-with firedrake.CheckpointFile("rayleigh-taylor.h5", "r") as chk:
+parser = argparse.ArgumentParser()
+parser.add_argument("--input", type=str, default="rayleigh-taylor.h5")
+parser.add_argument("--output", type=str, default="rayleigh-taylor")
+args = parser.parse_args()
+
+
+with firedrake.CheckpointFile(args.input, "r") as chk:
     mesh = chk.load_mesh(name="domain")
     num_steps = chk.h5pyfile.attrs["num_steps"]
     final_time = chk.h5pyfile.attrs["final_time"]
@@ -27,7 +34,7 @@ def animate(z):
     colors.set_array(fn_plotter(ρ))
 
 animation = FuncAnimation(fig, animate, zs, interval=1e3/30)
-animation.save("rayleigh-taylor.mp4")
+animation.save(f"{args.output}.mp4")
 
 nrows, ncols = 2, 3
 num = nrows * ncols
@@ -42,4 +49,4 @@ for index, ax in zip(indices, axes.flatten()):
     ρ = zs[index].subfunctions[2]
     firedrake.tripcolor(ρ, axes=ax, **kw)
 
-fig.savefig("rayleigh-taylor-density.png", dpi=300, bbox_inches="tight")
+fig.savefig(f"{args.output}-density.png", dpi=300, bbox_inches="tight")
