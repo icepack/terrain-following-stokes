@@ -906,14 +906,22 @@ We then spin the up the model for 400 years.
 
 We use again DQ${}_2$ elements for velocity, DQ${}_1$ elements for pressure, and CG${}_1$ elements for thickness.
 The mesh had 500 elements in the horizontal and 5 in the vertical.
-We note that this ratio cannot be adjusted arbitrarily because of the method fails to converge if the elements grow too thin, but see the discussion.
+We used a timestep of 1 year.
 We used an absolute convergence tolerance of $10^{-10}$ and a relative tolerance of $10^{-8}$.
 The results are shown in Figure \ref{fig:perlin-glacier}.
-Solving the fully-coupled system of both mass and momentum balance equations required 5 Newton iterations or less at every step.
+With these parameters, nearly all timesteps required 3 to 4 Newton iterations and only a handful required 5.
 
-\textcolor{red}{TODO: Repeat it at a finer discretization and check that the number of Newton iterations doesn't increase.
-Try it with Radau-IIA.
-Reimplement using the conventional scheme, maybe with FSSA.}
+We tested several other configurations against this default setup.
+We ran the same simulation with 10 vertical elements instead of 5.
+Several common Stokes elements, including Taylor-Hood, have a stability constant that is bounded away from zero only if the aspect ratio of the mesh is bounded.
+Thin-film flows often violate this assumption so it is desirable to have elements that remain stable even in the limit of small aspect ratio.
+We found that the distribution of Newton iterations necessary to achieve convergence was the same in this case as for the default.
+Second, we increased the polynomial degree to DQ${}_3$ for the velocity and DQ${}_2$ for the pressure.
+Again, the number of Newton iterations was roughly the same as the default case.
+Finally, we used the 2-stage Radau-IIA scheme.
+Here we found that the number of Newton iterations was consistently higher than for backward Euler, with a maximum of 9.
+It is possible that the number of iterations could be reduced by first computing a backward Euler solution and then linearly interpolating to the Radau-IIA collocation points in the interior.
+
 
 \subsection{Rayleigh-Taylor instability}
 
