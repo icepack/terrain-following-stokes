@@ -139,7 +139,10 @@ def density_equation(**kwargs):
     F_frame = ρ * inner(v, grad(φ)) * dx
 
     dS = dS_h + dS_v
-    f = ρ * firedrake.max_value(0, inner(h * u - v, n))
-    F_facets = jump(f) * jump(φ) * dS
+    w = inner(h * u - v, n)
+    W = (w("+") - w("-")) / 2
+    F_facets = (avg(ρ) * W + abs(W) / 2 * jump(ρ)) * jump(φ) * dS
 
-    return F_cells + F_frame + F_facets
+    F_boundary = ρ * inner(h * u - v, n) * φ * firedrake.ds_t
+
+    return F_cells + F_frame + F_facets + F_boundary
