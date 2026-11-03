@@ -6,7 +6,9 @@ import irksome
 from zetastokes import cartesian as xyz, terrain_following as tfc
 
 
-constants = {"viscosity": 1.0, "density": 1.0, "gravity": 9.81, "skin_depth": 1/8}
+constants = {
+    "viscosity": 1.0, "density": 1.0, "gravity": 9.81, "skin_depth": 1/8
+}
 
 
 def thickness(x):
@@ -70,7 +72,9 @@ def make_velocity(mesh, degree=1):
     return z.subfunctions[0]
 
 
-def solve_transport_equation_terrain_following(mesh, degree, *, final_time, num_steps):
+def solve_transport_equation_terrain_following(
+    mesh, degree, *, final_time, num_steps
+):
     u = make_velocity(mesh, degree=1)
 
     element = firedrake.FiniteElement("DQ", "quadrilateral", degree)

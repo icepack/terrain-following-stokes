@@ -1,6 +1,6 @@
 import firedrake
 from firedrake import (
-    Constant, inner, outer, sym, grad, div, dx, avg, jump, dS_h, dS_v,
+    Constant, inner, outer, sym, grad, div, dx, avg, jump, dS_h, dS_v, ds_t,
 )
 from irksome import Dt
 from .common import horizontal_ds as ds_h, vertical_ds as ds_v, get_test_function
@@ -88,7 +88,10 @@ def density_equation(**kwargs):
     F_cells = (Dt(ρ) * φ - ρ * inner(u, grad(φ))) * dx
 
     dS = dS_h + dS_v
-    f = ρ * firedrake.max_value(0, inner(u - v, n))
-    F_facets = jump(f) * jump(φ) * dS
+    w = inner(u - v, n)
+    W = (w("+") - w("-")) / 2
+    F_facets = (avg(ρ) * W + abs(W) / 2 * jump(ρ)) * jump(φ) * dS
 
-    return F_cells + F_facets
+    F_boundary = ρ * inner(u - v, n) * φ * ds_t
+
+    return F_cells + F_facets + F_boundary
