@@ -403,13 +403,12 @@ For example, \citet{cockburn2002local} derive interior penalty methods as a cons
 
 The geometry of a free-surface flow is changing in time.
 There are choices the modeler has to make about how to capture this effect and no one choice is clearly superior.
-One possibility is to use a fixed coordinate system and a moving mesh.
-The ice-flow modeling pacakge Elmer/ICE uses a Cartesian coordinate system and advects the mesh with the flow using an arbitrary Lagrangian-Eulerian scheme \citep{gagliardini2013capabilities}.
+One possibility is to use Cartesian coordinates and a moving mesh.
+The ice-flow modeling packages ISSM \citep{larour2012continental} and Elmer/ICE \citep{gagliardini2013capabilities} and the geodynamics modeling package ASPECT \citep{rose2017stability} all use this strategy.
+Elmer/ICE and ASPECT both move the mesh in 3D with a full Eulerian-Lagrangian scheme, while ISSM only moves the mesh in the vertical dimension.
 Alternatively, one can use a fixed mesh and a moving coordinate system.
 The package SICOPOLIS uses terrain-following coordinates, described in \S5.7 of \citet{greve2009dynamics} and below.
 Finally, one can use a completely fixed mesh and coordinate system and use interface-tracking techniques such as the level-set or volume-of-fluid methods \citep{hossain2020modelling, gray2026variational}.
-\textcolor{red}{Check ISSM, PISM, BISICLES if we want to be exhaustive}.
-\textcolor{red}{This text is also very glaciology-biased and we should talk about geodynamics a bit.}
 Here we will pursue the approach of using a coordinate system that is fixed in the horizontal but moving in the vertical.
 
 We can solve the problem of a moving geometry by transforming the coordinates.
@@ -587,6 +586,7 @@ preserves the relationship between the divergence of a vector field and the grad
 \subsection{The Stokes equations in terrain-following coordinates}
 
 We can proceed by systematically applying the transformation rules, summarized in Table \ref{tab:xform-rules}, to the minimization form of the Stokes problem.
+For this and the next section, all gradients, normal vectors, and measures are in the terrain-following coordinate system, so we will leave off the $\xi$ subscript.
 We will start with the objective for the original problem.
 The DG facet terms are shown separately below.
 The objective becomes
@@ -725,7 +725,7 @@ For simulations in both geodynamics and glaciology, we need to solve transport e
 The transformation rules that we wrote in \S\ref{subsec:xform-rules} all assumed that the problem was time-independent.
 For evolution equations, we now have to confront the fact that taking a derivative with respect to $t$ keeping $x_3$ fixed is not the same as taking a derivative with $\xi_3$ fixed.
 The physical surfaces of constant $\xi_3$ are not just curved; they are also evolving in time.
-We could painstakingly derive the right transformation rules for time derivatives.
+We could derive how time derivatives transform from the chain rule.
 But there is a shortcut.
 
 We can write down relatively clean equations by thinking of all integrals and differential operators in spacetime.
@@ -750,25 +750,26 @@ The volume transformation factor in spacetime is $|\det J|$ but because of the p
 We will use a gradient symbol with a hat $\hat{\nabla}$ for a spacetime gradient and a regular symbol $\nabla$ for space alone.
 With these conventions, if $\phi$ is a scalar field, then
 \begin{equation}
-    \hat{\nabla}\phi = \left[\begin{matrix}\frac{\partial}{\partial t}\phi \\ \nabla\phi\end{matrix}\right].
+    \hat{\nabla}\phi = \left[\begin{matrix}\frac{\partial}{\partial t}\phi \\ \nabla\phi\end{matrix}\right]
 \end{equation}
+where this equation is true in either coordinate system.
 Suppose we were working with a transport equation
 \begin{equation}
-    \frac{\partial}{\partial t}\phi + \nabla\cdot \phi w = f
+    \frac{\partial}{\partial t}\phi + \nabla_x\cdot \phi w_x = f
     \label{eq:transport}
 \end{equation}
 where $w$ is the transport velocity.
 (It will be clear in a moment why we use a different symbol $w$ for the transport velocity.)
 By introducing the 4-vector
 \begin{equation}
-    q = \left[\begin{matrix}\phi \\ \phi w\end{matrix}\right]
+    q = \left[\begin{matrix}\phi \\ \phi w_x\end{matrix}\right]
 \end{equation}
 we can succinctly write down the transport equation in spacetime as
 \begin{equation}
-    \hat{\nabla}\cdot q = f
+    \hat{\nabla}_x\cdot q = f
     \label{eq:4div}
 \end{equation}
-using the space-time divergence operator $\hat{\nabla}\cdot$.
+using the space-time divergence operator $\hat{\nabla}_x\cdot$.
 We will write $q_t$ and $q_x$ for the temporal and spatial parts of a spacetime vector where we need to refer to them separately.
 
 Let $\psi$ be a test function which depends on both space and time.
@@ -777,18 +778,18 @@ The boundary terms we get in doing so include both a spatial contribution \eqref
 The resulting variational form is
 \begin{subequations}
     \begin{align}
-        0 & = -\iint\limits_{\Omega\times[t_1, t_2]}q\cdot\hat{\nabla}\psi\ud\omega\ud t \label{eq:4div-form-cells} \\
-        & \qquad + \iint\limits_{\partial\Omega\times[t_1, t_2]}q_x\cdot n\,\psi\ud\gamma\ud t \label{eq:4div-form-xboundary}\\
-        & \qquad\quad + \int_\Omega q_t\psi\ud\omega\Bigg|_{t_2} - \int_\Omega q_t\psi\ud\omega\Bigg|_{t_1} \label{eq:4div-form-tboundary}
+        0 & = -\iint\limits_{\Omega\times[t_1, t_2]}q\cdot\hat{\nabla}_x\psi\ud\omega_x\ud t \label{eq:4div-form-cells} \\
+        & \qquad + \iint\limits_{\partial\Omega\times[t_1, t_2]}q_x\cdot n\,\psi\ud\gamma_x\ud t \label{eq:4div-form-xboundary}\\
+        & \qquad\quad + \int_\Omega q_t\psi\ud\omega_x\Bigg|_{t_2} - \int_\Omega q_t\psi\ud\omega_x\Bigg|_{t_1} \label{eq:4div-form-tboundary}
     \end{align}
 \end{subequations}
 For the particular case of the transport equation \eqref{eq:transport}, we can unpack this into the more familiar form
 \begin{subequations}
     \label{eq:transport-git}
     \begin{align}
-        0 & = -\iint\limits_{\Omega\times[t_1, t_2]}\left(\phi\frac{\partial\psi}{\partial t} + \phi w\cdot\nabla\psi\right)\ud\omega\ud t \\
-        & \qquad + \iint\limits_{\partial\Omega\times[t_1, t_2]}\phi w\cdot n\,\psi\ud\gamma\ud t \\
-        & \qquad\quad + \int_\Omega \phi\psi\ud\omega\Bigg|_{t_2} - \int_\Omega \phi\psi\ud\omega\Bigg|_{t_1}
+        0 & = -\iint\limits_{\Omega\times[t_1, t_2]}\left(\phi\frac{\partial\psi}{\partial t} + \phi w_x\cdot\nabla_x\psi\right)\ud\omega_x\ud t \\
+        & \qquad + \iint\limits_{\partial\Omega\times[t_1, t_2]}\phi w_x\cdot n\,\psi\ud\gamma_x\ud t \\
+        & \qquad\quad + \int_\Omega \phi\psi\ud\omega_x\Bigg|_{t_2} - \int_\Omega \phi\psi\ud\omega_x\Bigg|_{t_1}
     \end{align}
 \end{subequations}
 From here, we arrive at the right conditions on the inflow and outflow boundary by segmenting $\partial\Omega$ according to where $w\cdot n$ is positive or negative.
@@ -806,7 +807,7 @@ This amounts to considering the case where a control volume is changing in time 
 This extra motion of the control volume is a factor whether we use Cartesian coordinates and a moving mesh or time-evolving curvilinear coordinates on a fixed mesh.
 The correct course is to take
 \begin{equation}
-    w = u - v,
+    w_x = u_x - v_x,
     \label{eq:transport-velocity}
 \end{equation}
 i.e. the velocity in a fixed reference frame, in equation \eqref{eq:transport-git}.
@@ -839,7 +840,7 @@ We do not need to expand the expression for $\partial h/\partial t$ but rather w
 
 Finally, we observe that the strong form of equation \eqref{eq:transport-tfc} is
 \begin{equation}
-    \frac{\partial}{\partial t}h\phi + \nabla\cdot\{h(u - v)\phi\} = hf.
+    \frac{\partial}{\partial t}h\phi + \nabla_\xi\cdot\{h(u_\xi - v_\xi)\phi\} = hf.
     \label{eq:transport-tfc-strong}
 \end{equation}
 The major change is a few factors of $h$.
@@ -854,12 +855,9 @@ For example, \citet{luo2004contravariant} show examples of faulty derivations of
 They then show that the same test case can reveal the fault in these derivations.
 Imagine a fluid moving with a uniform velocity in one direction, but in a coordinate system that is rotating at a constant angular velocity.
 Any proposed derivation of the Navier-Stokes equations in curvilinear coordinates should have, in this rotating reference frame, a velocity $u$ that is rotating in the opposite direction as an exact solution.
-An analogous thought experiment for free surface flows is to imagine a fluid at rest in a container with a flat bottom.
-More fluid is then added onto the top of the domain at some steady rate but the density of the accreted fluid decreases in time but slowly and evenly enough that the fluid stays at rest.
-The velocity $u$ of the fluid in the terrain-following reference frame is zero.
-So without any correction velocity $v$, there is no way for the local density to change at all.
-But the surfaces of constant $\xi_3$ are moving upward through fluid of lighter and lighter density, so at any point in the domain the density should be decreasing in time.
-Using the velocity \eqref{eq:tfc-coord-velocity} of the reference frame gives the expected time rate of change of density.
+A test case that caught several problems in our implementation is the flow of a viscous incompressible fluid in a rigid container.
+We take the density to be a spatially-dependent field that can evolve in time but give it an initial value that is constant in space.
+If the density field develops significant spatial variations, then the implementation is incorrect.
 
 
 % ----------------------
@@ -897,9 +895,7 @@ The key code to express the variational form is three lines of Python code using
 It has fewer potential error modes than, say, using a discontinuous Galerkin discretization, terrain-following coordinates, or both.
 We can then compare the alternative solutions to the numerical ground truth.
 
-\subsection{Static problems}
-
-The tests on static problems are broken down in a fine-grained way because we need to get several things correct and all of them are error-prone.
+The tests are broken down in a fine-grained way because we need to get several things correct and all of them are error-prone.
 For example, our goal at this stage is to solve the Stokes problem in terrain-following coordinates where the thickness and bed topography are discretized in a finite element space.
 Suppose that the numerical solution we obtain does not map onto the corresponding solution in Cartesian coordinates.
 The variational form requires DG facet terms, even when we use conforming elements for velocity and pressure, because of the discontinuity in the matrix $J$ described above.
@@ -952,15 +948,24 @@ This solution will compare poorly with the Cartesian solution, not because it wa
 This is the final stage before testing time-dependent problems and includes all of the features we desire for our discretization of the momentum balance equation.
 This test was successful on the first pass because all of the mistakes had already been made in the previous two stages.
 
+\paragraph{Time-evolving problems}
 
-\subsection{Time-evolving problems}
+The next step is to test problems where the thickness or density can evolve in time.
+Here the prospect of obtaining analytical solutions is even worse than the static case.
+Here we can isolate some problems with standard test cases.
+For example, we can catch rudimentary errors using a velocity field in constant solid-body rotation and checking that the solution after a full revolution gets closer to the initial condition as the mesh is refined.
+Other mistakes only become clear with more involved tests.
+The relaxation of a sinusoidal free surface (described further below) caught several errors in our implementation of the density evolution equation.
+Here we take the density to be a space-dependent scalar field that can evolve in time but give it a constant initial value.
+The density should stay constant as long as the fluid is incompressible.
+Developing significant spatial variations is evidence of a bug in the code.
+This test case revealed an error that simpler cases do not.
+Our initial implementation used a form of the facet flux that is only valid if the velocity field has continuous normals, but when we use DG elements, the normal velocity can be discontinuous.
+Using the wrong facet flux gives spurious oscillations in the density.
+Synthetic velocity fields are continuous and thus cannot identify this error.
 
-The next step is to test problems where the thickness can evolve in time and finally also the bed.
-Again, there are several respects in which we can isolate potential failure modes.
-The discontinuity in $J$ with Lagrange finite elements is a major potential failure mode.
-We can temporarily work around this problem by using $C^1$ elements for the bed elevation and thickness.
-These elements are respectively the Hermite element in 1D and Argyris or Hsieh-Clough-Tocher in 2D.
-The time-evolving solution obtained with these elements can then serve as the ground truth against which we compare the solutions obtained with Lagrange elements.
+Finally, we ran this same test case but artificially turned off the coordinate frame velocity in equation \eqref{eq:transport-velocity}.
+The density field stays constant with the frame velocity but develops spatial variations without, which confirms that the frame velocity really is necessary.
 
 
 % ----------------------
@@ -1006,7 +1011,8 @@ The first step required 3 Newton iterations and every subsequent timestep requir
 Like backward Euler, the Radau-IIA(2) also converged in 3 Newton iterations with a timestep of 20 years.
 
 Finally, we ran a simulation with double the number of elements in both directions.
-If the number of the number of Newton iterations increases as the mesh is refined, then the method might fail to be scalable.
+Here we are looking to see if the number of Newton iterations needed stays the same or grows as we refine.
+A growing iteration count could indicate that there is a fundamental issue with the solvability of the underlying mathematical problem.
 We found that every step required 2 Newton iterations on the refined mesh as well.
 
 \subsection{Perlin glacier}
@@ -1070,7 +1076,7 @@ The relative differences in the fluid thickness and terminus position in steady 
     \begin{center}
         \includegraphics[width=0.8\linewidth]{demo/rayleigh-taylor/rayleigh-taylor-density.png}
     \end{center}
-    \caption{Density at the start and at the end of the simulation.
+    \caption{Density field at intervals of 150 ka throughout the simulation.
     A higher-density fluid above a lower-density fluid is gravitationally unstable.}
     \label{fig:rayleigh-taylor}
 \end{figure}
@@ -1087,14 +1093,14 @@ The material below the interface has a density of 3200 kg/m${}^3$ and the materi
 The viscosity is 10${}^{20}$ Pa$\cdot$s, but for numerical stability we use units of gigapascals, kilometers, and millennia (ka).
 \citet{kaus2010stabilization} found that the unstabilized simulation would converge with a timestep of 2.5 ka but exhibited the drunken sailor instability at a timestep of 5 ka.
 Their stabilized scheme converged with timesteps up to 50 ka.
-We used a monolithic backward Euler scheme which solves simultaneously for velocity, pressure, density, and thickness and ran the simulation for 2400 ka of model time.
+We used a monolithic backward Euler scheme which solves simultaneously for velocity, pressure, density, and thickness.
+We ran the simulation for 2400 ka of model time with a timestep of 50 ka.
 We used both DQ${}_0$ and DQ${}_1$ finite elements for the density with the upwind numerical flux.
-The results show the expect sinking of the heavier fluid.
+The results, shown in Figure \ref{fig:rayleigh-taylor}, exhibit the expected sinking of the heavier fluid and rising of lighter plumes.
 The maximum displacement of the free surface was roughly 2 km.
 
-Our convergence criterion was that the residual was reduced by a factor of 10${}^{-8}$.
-This scheme converged with a timestep of 5 ka and required two Newton iterations for almost all steps \textcolor{red}{TODO get the exact numbers}.
-The scheme also converged with a timestep of 50 ka with only one additional Newton iteration per step.
+Our convergence criterion was that the residual was reduced by a factor of 10${}^{-8}$ or dropped below 10${}^{-9}$.
+This scheme converged with a timestep of 50 ka and required three Newton iterations or less for every step.
 
 The main failure mode in implementing this simulation was non-convergence due to poor scaling of the different components of the residual.
 The fix for this problem is making a good choice of units.
@@ -1112,7 +1118,8 @@ The most significant advantages are overcoming the drunken sailor instability an
 Several previous works have used terrain-following coordinates for ice flow modeling.
 \citet{kleiner2014numerical} is the closest in spirit to this work.
 They used a higher-order ice flow model with a transformed coordinate system but discretized the problem using the finite difference method.
-\citet{greve2009dynamics} describe the the implementation of the ice-flow model SICOPOLIS, which also uses a finite difference discretization in terrain-following coordinates but focuses more on the shallow ice approximation.
+\citet{greve2009dynamics} describe the the implementation of the ice-flow model SICOPOLIS.
+This package also uses a finite difference discretization in terrain-following coordinates but focuses on depth-averaged simplifications of the Stokes equations.
 Our approach differs from both of these in that (1) we worked with the contravariant components of the velocity vector, (2) we used the full Stokes equations, and (3) we used the finite element method rather than the finite difference method.
 
 The velocity vector has an existence independent of the reference frame, but to do computations we have to write it out in components.
@@ -1127,7 +1134,7 @@ We elected to work with the contravariant components of the velocity vector in t
 The transformed equations that we use do have extra factors of $J$.
 We had to use special techniques in order to discretize the problem because of these extra terms.
 The equations would indeed become too complicated to implement if we were to write out every component of the stress tensor and the momentum balance equation.
-But we were able to avoid a great deal of messy algebra by working at the level of vector and tensor fields rather than their individual components.
+But we were able to avoid some algebra by working at the level of vector and tensor fields rather than their individual components.
 
 We argue that working directly with the contravariant components of the velocity in the non-orthogonal coordinate system also has advantages.
 The main benefit is in prescribing the top and bottom boundary conditions.
@@ -1169,9 +1176,9 @@ We are not aware of any papers that looked at a variational form or discretizati
 
 We also derived the form of the transport equation for density, chemical species, or another conserved scalar field in curvilinear coordinates.
 It is common to derive transformed evolution equations in strong form through painstaking application of the chain rule.
-Instead, we showed how to derive a variational form in spacetime and to then work backwords to a more familiar equation.
-This derivation could seem unusual but it does avoid messy algebra.
-We argue that avoiding messy algebra is not just an aesthetic preference.
+Instead, we showed how to derive a variational form in spacetime and to then work backwards to a more familiar equation.
+This derivation is a little unusual but it avoids some of the algebra.
+We argue that cutting down on algebra is not just an aesthetic preference.
 Shorter equations are easier to translate into code and to check against analytical solutions.
 
 There are several problems that this work does not address: nonlinearity, divergence-conforming or anisotropic finite elements, and solver strategies.
