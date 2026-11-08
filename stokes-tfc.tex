@@ -1105,7 +1105,40 @@ This scheme converged with a timestep of 50 ka and required three Newton iterati
 The main failure mode in implementing this simulation was non-convergence due to poor scaling of the different components of the residual.
 The fix for this problem is making a good choice of units.
 
-\textcolor{red}{TODO: Radau-IIA}
+\begin{figure}
+    \begin{center}
+        \includegraphics[width=0.8\linewidth]{demo/rayleigh-taylor/convergence.png}
+
+        \includegraphics[width=0.8\linewidth]{demo/rayleigh-taylor/work-precision.png}
+    \end{center}
+    \caption{Convergence rates (a) and work vs. precision (b) for the backward Euler and Radau-IIA methods for the Rayleigh-Taylor instability problem.}
+    \label{fig:rayleigh-taylor-work-prec}
+\end{figure}
+
+Finally, we evaluated how effective the Radau-IIA time discretization is for this problem.
+We ran the first 2 Ma of the Rayleigh-Taylor instability problem with the Radau-IIA scheme at a timestep of 12.5 ka as a reference solution.
+We compared this result to solutions obtained using the backward Euler and Radau methods at a range of timesteps.
+Figure \ref{fig:rayleigh-taylor-work-prec}(a) shows the empirical convergence rates.
+Through most of the coarser timesteps, the rates are slower than the theoretical value.
+At the finest timesteps, the error curve does approach the theoretical values of 1 and 3 respectively.
+The slower rates at coarser timesteps do not indicate an error of themselves.
+The theoretical convergence rates are only in the limit as the timestep is reduced and deviations from these rates at coarse steps are possible.
+Moreover, the initial condition is non-smooth, which might also cause some departure from the theoretical convergence rate.
+The more interesting outcome is the work-precision curve in Figure \ref{fig:rayleigh-taylor-work-prec}(b), which plots the difference between the reference solution for each field against the wall clock time that each simulation required.
+These curves indicate that \textbf{the Radau-IIA method requires less effort to obtain a solution of the same accuracy as backward Euler over the entire range of timesteps}.
+
+The work-precision curves described above assume that we are using direct factorization of the linear system to compute the Radau-IIA solution.
+The linear system to solve for the $k$-stage Radau-IIA method looks like $k$ coupled copies of the linear system we have to solve for backward Euler.
+Factoring this larger system is much more expensive than for backward Euler.
+But it is possible to bring the performance of Radau-IIA closer to that of backward Euler with an efficient preconditioner.
+The key idea of the \emph{Rana-Howle} preconditioner is to compute an $LDU$ factorization of the Butcher tableau of a Runge-Kutta method.
+The preconditioner is the product $LD$, which is lower-triangular \citep{rana2021new}
+We can then apply the inverse of $LD$ through a sequence of block solves where each block has the same pattern as backward Euler.
+Moreover, the eigenvalues of the preconditioned matrix are all equal to 1.
+Many Krylov methods converge fastest when the eigenvalues are clustered \citep{saad2003iterative}
+We ran the same experiment above using the Rana-Howle preconditioner and found that an outer-level GMRES solve converged in 3-4 iterations in each step.
+\textcolor{red}{TODO: Results.}
+This preconditioner cuts the execution time and memory by roughly 30\%.
 
 
 % ------------------
@@ -1200,8 +1233,10 @@ We did some testing of how well a standard discretization performed with a small
 These techniques will be much more effective on typical problems in the earth sciences if they can be made robust to extremely small aspect ratio.
 
 Finally, we used standard Newton methods with a line search and direct factorization of the associated linear systems.
-Nonlinear preconditioning could significantly reduce the cost burden of higher-order timestepping schemes.
-The simplest approach would be to interpolate an initial backward Euler solution as a first guess at the values of a Radau-IIA solution at other collocation points.
+It is often taken for granted that using fully-coupled implicit Runge-Kutta methods is impractically expensive.
+With no optimization at all, the Radau-IIA scheme has a more favorable work-precision curve than backward Euler.
+The Rana-Howle preconditioner makes the cost of fully-implicit schemes closer to that of diagonally-implicit methods.
+There are other possible performance improvements that we have not explored, including using hybridization or multigrid preconditioners.
 
 These issues and others will be the subject of future work.
 

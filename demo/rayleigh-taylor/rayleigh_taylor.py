@@ -6,10 +6,12 @@ import firedrake
 from firedrake import as_vector, Constant, dot, derivative, dx
 from ufl.algorithms import expand_derivatives
 import irksome
+from irksome.pc import RanaLDScheme
 from zetastokes.terrain_following import (
     free_energy_rate, thickness_equation, density_equation,
     coordinate_transformation_derivatives
 )
+from solver_parameters import lu, newton_krylov_rana
 
 
 parser = argparse.ArgumentParser()
@@ -17,10 +19,13 @@ parser.add_argument("--degree", type=int, default=1)
 parser.add_argument("--timestep", type=float, default=50.0)
 parser.add_argument("--final-time", type=float, default=24e3)
 parser.add_argument("--method", choices=["euler", "radau"], default="euler")
+parser.add_argument("--solver", choices=["lu", "rana"], default="lu")
 parser.add_argument("--num-cells", type=int, default=50)
 parser.add_argument("--atol", type=float, default=1e-9)
 parser.add_argument("--output", type=str, default="rayleigh-taylor.h5")
 args = parser.parse_args()
+if args.solver == "rana" and args.method != "radau":
+    parser.error("--solver rana needs --method radau")
 
 
 sec_per_year = 365.25 * 24 * 60 * 60
@@ -37,17 +42,8 @@ constants = {
 }
 
 
-sparams = {
-    "solver_parameters": {
-        "snes_linesearch_type": "nleqerr",
-        "pc_factor_mat_solver_type": "mumps",
-        "mat_mumps_icntl_7": 5,
-        "mat_mumps_icntl_14": 100,
-        "snes_stol": 0.0,
-        "snes_atol": args.atol,
-        "snes_monitor": None,
-    },
-}
+tolerances = {"snes_stol": 0.0, "snes_atol": args.atol, "snes_monitor": None}
+sparams = {"solver_parameters": {**lu, **tolerances}}
 
 
 def initial_density(x, z):
@@ -126,7 +122,14 @@ method = methods[args.method]
 t = Constant(0.0)
 timestep = args.timestep
 dt = Constant(timestep)
-solver = irksome.TimeStepper(F, method, t, dt, z, **pparams, **sparams)
+if args.solver == "rana":
+    stepper_params = {
+        "solver_parameters": {**newton_krylov_rana, **tolerances},
+        "scheme_Jp": RanaLDScheme(method),
+    }
+else:
+    stepper_params = sparams
+solver = irksome.TimeStepper(F, method, t, dt, z, **pparams, **stepper_params)
 
 zs = [z.copy(deepcopy=True)]
 num_steps = int(args.final_time / timestep)
