@@ -1076,9 +1076,15 @@ The relative differences in the fluid thickness and terminus position in steady 
     \begin{center}
         \includegraphics[width=0.8\linewidth]{demo/rayleigh-taylor/rayleigh-taylor-density.png}
     \end{center}
-    \caption{Density field at intervals of 150 ka throughout the simulation.
+    \caption{Density field at intervals of 150 ka throughout a 24 Ma-long simulation of Rayleigh-taylor instability.
     A higher-density fluid above a lower-density fluid is gravitationally unstable.}
-    \label{fig:rayleigh-taylor}
+    \label{fig:rayleigh-taylor-density}
+
+    \begin{center}
+        \includegraphics[width=0.6\linewidth]{demo/rayleigh-taylor/rayleigh-taylor-thickness.png}
+    \end{center}
+    \caption{Thickness of the fluid layer over the first 3 Ma of the simulation.}
+    \label{fig:rayleigh-taylor-thickness}
 \end{figure}
 
 We implemented the Rayleigh-Taylor instability test case from \citet{kaus2010stabilization}.
@@ -1094,14 +1100,14 @@ The viscosity is 10${}^{20}$ Pa$\cdot$s, but for numerical stability we use unit
 \citet{kaus2010stabilization} found that the unstabilized simulation would converge with a timestep of 2.5 ka but exhibited the drunken sailor instability at a timestep of 5 ka.
 Their stabilized scheme converged with timesteps up to 50 ka.
 We used a monolithic backward Euler scheme which solves simultaneously for velocity, pressure, density, and thickness.
-We ran the simulation for 2400 ka of model time with a timestep of 50 ka.
+We ran the simulation for 24 Ma of model time with a timestep of 50 ka.
 We used both DQ${}_0$ and DQ${}_1$ finite elements for the density with the upwind numerical flux.
-The results, shown in Figure \ref{fig:rayleigh-taylor}, exhibit the expected sinking of the heavier fluid and rising of lighter plumes.
-The maximum displacement of the free surface was roughly 2 km.
+The results, shown in Figure \ref{fig:rayleigh-taylor-density}, exhibit the expected sinking of the heavier fluid and rising of lighter plumes.
+The thickness over the first 3 Ma is shown in Figure \ref{fig:rayleigh-taylor-thickness}.
+The initially flat surface forms a bulge about 1 km high in the first 1 Ma which gradually decays.
 
 Our convergence criterion was that the residual was reduced by a factor of 10${}^{-8}$ or dropped below 10${}^{-9}$.
 This scheme converged with a timestep of 50 ka and required three Newton iterations or less for every step.
-
 The main failure mode in implementing this simulation was non-convergence due to poor scaling of the different components of the residual.
 The fix for this problem is making a good choice of units.
 
@@ -1111,7 +1117,10 @@ The fix for this problem is making a good choice of units.
 
         \includegraphics[width=0.8\linewidth]{demo/rayleigh-taylor/work-precision.png}
     \end{center}
-    \caption{Convergence rates (a) and work vs. precision (b) for the backward Euler and Radau-IIA methods for the Rayleigh-Taylor instability problem.}
+    \caption{Convergence rates (a) and work vs. precision (b) for backward Euler, 2-stage Radau-IIA with direct factorization, and Radau-IIA with Rana preconditioning.
+    The point labels show the timestep using in units of 10${}^3$ years.
+    The typical scales for the velocity are on the order of 10${}^{-1}$ m/a, so for example the backward Euler solution with a timestep of 25 ka has an RMS error of 10${}^{-2}$ m/a which makes for a relative error of about 10\%, while the Radau solution with a timestep of 50 ka has a relative error below 1\%.
+    Likewise, the density contrast is 100 kg/m${}^3$ and the total thickness variation is about 1 km.}
     \label{fig:rayleigh-taylor-work-prec}
 \end{figure}
 
@@ -1130,15 +1139,15 @@ These curves indicate that \textbf{the Radau-IIA method requires less effort to 
 The work-precision curves described above assume that we are using direct factorization of the linear system to compute the Radau-IIA solution.
 The linear system to solve for the $k$-stage Radau-IIA method looks like $k$ coupled copies of the linear system we have to solve for backward Euler.
 Factoring this larger system is much more expensive than for backward Euler.
-But it is possible to bring the performance of Radau-IIA closer to that of backward Euler with an efficient preconditioner.
+It so happens that this expense is paid for in accuracy gain.
+But it is also possible to reduce the expense of Radau-IIA with an efficient preconditioner.
 The key idea of the \emph{Rana-Howle} preconditioner is to compute an $LDU$ factorization of the Butcher tableau of a Runge-Kutta method.
-The preconditioner is the product $LD$, which is lower-triangular \citep{rana2021new}
-We can then apply the inverse of $LD$ through a sequence of block solves where each block has the same pattern as backward Euler.
-Moreover, the eigenvalues of the preconditioned matrix are all equal to 1.
+The preconditioner is formed using the product $LD$, which is lower-triangular \citep{rana2021new}.
+We can then apply the preconditioner with a block-triangular solver where each block has the same pattern as backward Euler.
+Since the $U$ matrix is unit upper triangular, the eigenvalues of the preconditioned Butcher matrix are all equal to 1.
 Many Krylov methods converge fastest when the eigenvalues are clustered \citep{saad2003iterative}
 We ran the same experiment above using the Rana-Howle preconditioner and found that an outer-level GMRES solve converged in 3-4 iterations in each step.
-\textcolor{red}{TODO: Results.}
-This preconditioner cuts the execution time and memory by roughly 30\%.
+This preconditioner cuts the execution time by over 40\% and memory by 30\%.
 
 
 % ------------------
