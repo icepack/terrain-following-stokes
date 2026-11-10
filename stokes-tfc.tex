@@ -986,7 +986,9 @@ Here we provide demonstrations beyond the unit tests described above.
 
 As a ``smoke test'', we consider relaxation of a sinusoidal surface based on the first test case from \citet{kramer2012implicit}.
 We used a no-slip condition on the bottom of the domain, free-slip conditions on the side walls, and no stress on the surface.
-The parameters for the simulation are described in \textcolor{red}{Table X}.
+The fluid is confined to a domain 100 km wide.
+The initial mean thickness is 1 km with a variation of 100 m.
+The viscosity and density are $10^{12}$ Pa s and 910 kg/m${}^3$ respectively.
 For the numerical scheme, we use DQ${}_2$ elements for the velocity, DQ${}_1$ elements for the pressure, and CG${}_1$ elements for the thickness.
 We used a mesh with 50 elements in the horizontal and 5 in the vertical.
 
