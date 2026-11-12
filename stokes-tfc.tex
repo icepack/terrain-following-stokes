@@ -454,12 +454,13 @@ Then we can concisely express the derivative of the transformation from Cartesia
     J = \frac{\mathrm dx}{\mathrm d\xi} = \left[\begin{matrix}I & 0 \\ \sigma^* & h\end{matrix}\right].
     \label{eq:dx-dxi}
 \end{equation}
+For consistency and conciseness, we refer to $J$ as the \emph{deformation matrix} in the following.
 All that the transformation rules below require is an explicit expression for $J$ or its inverse.
 The derivations are all rudimentary multivariable calculus.
 Nonetheless implementating the total of all of them can be error-prone, so they are worth repeating.
 
 \paragraph{Volumes.}
-Transforming volume integrals follows the familiar rule of multiplying by the determinant of the linearization of the transformation map:
+Transforming volume integrals follows the familiar rule of multiplying by the determinant of the deformation matrix:
 \begin{equation}
     \mathrm d\omega_x = |\det J|\ud\omega_\xi = h\ud\omega_\xi.
     \label{eq:xform-volume}
@@ -823,7 +824,7 @@ We get the variational form in curvilinear coordinates by applying the transform
     \label{eq:transport-tfc}
     \begin{align}
         0 & = -\iint\limits_{\Omega\times[t_1,t_2]}\left\{h\phi\frac{\partial\psi}{\partial t} + h\phi(u_\xi - v_\xi)\cdot\nabla_\xi\psi + hf\psi\right\}\,\mathrm d\omega_\xi\ud t \\
-        & \qquad + \iint\limits_{\partial\Omega\times[t_1,t_2]}h\left\{\phi\left[(u_\xi - v_\xi)\cdot n_\xi\right]_+ + \phi_{\text{in}}\left[(u_\xi - v_\xi)\cdot n_\xi\right]_- \right\}\psi\ud\gamma_\xi \\
+        & \qquad + \iint\limits_{\partial\Omega\times[t_1,t_2]}h\left\{\phi\left[(u_\xi - v_\xi)\cdot n_\xi\right]_+ + \phi_{\text{in}}\left[(u_\xi - v_\xi)\cdot n_\xi\right]_- \right\}\psi\ud\gamma_\xi\ud t \\
         & \qquad\qquad + \int_\Omega h\phi\psi\ud\omega_\xi\Bigg|_{t_2} - \int_\Omega h\phi\psi\ud\omega_\xi\Bigg|_{t_1}.
     \end{align}
 \end{subequations}
@@ -958,7 +959,7 @@ This test was successful on the first pass because all of the mistakes had alrea
 
 The next step is to test problems where the thickness or density can evolve in time.
 Here the prospect of obtaining analytical solutions is even worse than the static case.
-Here we can isolate some problems with standard test cases.
+But we can identify common problems with standard test cases.
 For example, we can catch rudimentary errors using a velocity field in constant solid-body rotation and checking that the solution after a full revolution gets closer to the initial condition as the mesh is refined.
 Other mistakes only become clear with more involved tests.
 The relaxation of a sinusoidal free surface (described further below) caught several errors in our implementation of the density evolution equation.
