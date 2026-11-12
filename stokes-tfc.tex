@@ -73,7 +73,7 @@
 
 \maketitle
 
-\abstract{This paper describes how to simulate viscous thin-film fluid flows using a combination of terrain-following coordinates and discontinuous Galerkin discretization.
+\abstract{This paper describes how to simulate viscous fluid flows with a free surface using a combination of terrain-following coordinates and discontinuous Galerkin methods.
 Terrain-following coordinates were originally developed for simulating the flow of the atmosphere and ocean over variable topography.
 For these problems, viscosity is negligible, so the equations of motion contain only first-order derivatives in space and time.
 Here we are interested in free-surface flows where viscous effects are dominant.
@@ -89,7 +89,8 @@ Our main contribution is to show how this challenge can be overcome using discon
 % --------------------
 \section{Introduction}
 
-Our goal in this paper is to describe techniques for simulating the flow of thin fluid films over variable topography at low Reynolds number with applications to glaciology and geodynamics.
+Our goal in this paper is to describe techniques for simulating very viscous fluid flow with a free surface.
+We have in mind applications to glaciology and geodynamics.
 When the surface of the fluid is free to move up and down, the geometry of the problem is changing in time.
 Simulations in an evolving geometry are harder than in a fixed geometry.
 In atmospheric science and oceanography, a common remedy is to use \emph{terrain-following coordinates} \citep{gal1975use}.
@@ -166,15 +167,17 @@ A handful of papers in aeronautical engineering have derived the Navier-Stokes e
 First, they do not use the Stokes equations but rather a perturbative simplification based on the smallness of the domain aspect ratio.
 Second, they work with the Cartesian components of the velocity vector rather than the contravariant components in the transformed coordinate system.
 
-Our contribution is to show how to discretize thin-film flow at low Reynolds number using discontinuous Galerkin methods.
+Our contribution is to show how to discretize free-surface flow at low Reynolds number using discontinuous Galerkin methods.
 This is summed up in its entirety in equation \eqref{eq:sipdg-stokes-tfc}, which is the most important part of the paper.
 To our knowledge, this equation has not appeared in the glaciology or geodynamics literature before.
 An important consequence is that we can solve the coupled mass and momentum balance equations all at once without recourse to operator splitting.
+We can then use higher-order implicit Runge-Kutta methods.
+These schemes have a better work-precision tradeoff than lower-order schemes, as we show in the final demonstration.
 
 We lean heavily on discontinuous Galerkin methods in this paper.
 These schemes are very well-studied in the applied mathematics literature.
 But their broad diffusion into other disciplines in science and engineering is still uneven.
-For this reason, we aim to cover the details at a lower level than is strictly necessary.
+For this reason, we cover the details at a lower level than is strictly necessary.
 We refer to \citet{di2011mathematical} for further reading.
 
 
