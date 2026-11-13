@@ -1,79 +1,54 @@
-\documentclass{article}
+%% Geoscientific Model Development submission, using the Copernicus LaTeX
+%% package v7.16 (copernicus.cls, copernicus.cfg, copernicus.bst in this
+%% directory).
 
-\usepackage{amsmath}
-%\usepackage{amsfonts}
-\usepackage{amsthm}
-%\usepackage{amssymb}
-%\usepackage{mathrsfs}
-%\usepackage{fullpage}
-%\usepackage{mathptmx}
-%\usepackage[varg]{txfonts}
-\usepackage{color}
-\usepackage[charter]{mathdesign}
-\usepackage[pdftex]{graphicx}
-\usepackage{csquotes}
-%\usepackage{float}
-%\usepackage{hyperref}
-\usepackage[modulo, displaymath, mathlines]{lineno}
-\linenumbers
-\usepackage[margin=1in]{geometry}
-%\usepackage{setspace}
-%\usepackage[titletoc,toc,title]{appendix}
-\usepackage{natbib}
-\usepackage[makeroom]{cancel}
-\usepackage[only,llbracket,rrbracket]{stmaryrd}
-\usepackage{xfrac}
+\documentclass[gmd, manuscript]{copernicus}
 
-\usepackage{upgreek}
-\usepackage[utf8]{inputenc}
-\usepackage[T1]{fontenc}
-\usepackage{inconsolata}
-\usepackage{listings}
+%% Packages and commands loaded by copernicus.cls include amsmath, amssymb,
+%% amsthm, cancel, graphicx, listings, natbib, color, and lineno.
+
 \lstset{
     language=Python,
     basicstyle=\ttfamily\scriptsize,
     extendedchars=true,
     breaklines=true,
     literate=
-    {δ}{{\ensuremath{\updelta}}}1
-    {ε}{{\ensuremath{\upvarepsilon}}}1
-    {τ}{{\ensuremath{\uptau}}}1
-    {μ}{{\ensuremath{\upmu}}}1
-    {α}{{\ensuremath{\upalpha}}}1
-    {γ}{{\ensuremath{\upgamma}}}1
-    {λ}{{\ensuremath{\uplambda}}}1
+    {δ}{{\ensuremath{\delta}}}1
+    {ε}{{\ensuremath{\varepsilon}}}1
+    {τ}{{\ensuremath{\tau}}}1
+    {μ}{{\ensuremath{\mu}}}1
+    {α}{{\ensuremath{\alpha}}}1
+    {γ}{{\ensuremath{\gamma}}}1
+    {λ}{{\ensuremath{\lambda}}}1
 }
-
-%\linenumbers
-%\doublespacing
-
-\theoremstyle{definition}
-\newtheorem*{defn}{Definition}
-\newtheorem*{exm}{Example}
-
-\theoremstyle{plain}
-\newtheorem*{thm}{Theorem}
-\newtheorem*{lem}{Lemma}
-\newtheorem*{prop}{Proposition}
-\newtheorem*{cor}{Corollary}
-
-\newcommand{\argmin}{\text{argmin}}
-\newcommand{\ud}{\hspace{2pt}\mathrm{d}}
-\newcommand{\bs}{\boldsymbol}
-\newcommand{\PP}{\mathsf{P}}
-\let\divsymb=\div % rename builtin command \div to \divsymb
-\renewcommand{\div}[1]{\operatorname{div} #1} % for divergence
-\newcommand{\Id}[1]{\operatorname{Id} #1}
-
-\title{Simulating the flow of viscous, incompressible fluids with a free surface using terrain-following coordinates}
-\author{Daniel R. Shapero, ...TBD}
-\date{}
 
 \begin{document}
 
+\title{Simulating the flow of viscous, incompressible fluids with a free surface using terrain-following coordinates}
+
+% \Author[affil]{given_name}{surname}
+\Author[1][shapero@uw.edu]{Daniel R.}{Shapero}
+
+\affil[1]{Polar Science Center, Applied Physics Laboratory, University of Washington}
+
+\runningtitle{Viscous free-surface flow in terrain-following coordinates}
+
+\runningauthor{Shapero}
+
+\received{}
+\pubdiscuss{} %% only important for two-stage journals
+\revised{}
+\accepted{}
+\published{}
+
+%% These dates will be inserted by Copernicus Publications during the typesetting process.
+
+\firstpage{1}
+
 \maketitle
 
-\abstract{This paper describes how to simulate viscous fluid flows with a free surface using a combination of terrain-following coordinates and discontinuous Galerkin methods.
+\begin{abstract}
+This paper describes how to simulate viscous fluid flows with a free surface using a combination of terrain-following coordinates and discontinuous Galerkin methods.
 Terrain-following coordinates were originally developed for simulating the flow of the atmosphere and ocean over variable topography.
 For these problems, viscosity is negligible, so the equations of motion contain only first-order derivatives in space and time.
 Here we are interested in free-surface flows where viscous effects are dominant.
@@ -83,11 +58,11 @@ Transforming these terms to the new coordinate system is more complex.
 In particular, the warping factor from terrain-following to Cartesian coordinates depends on the slope of the surface and bed.
 When the topography has been discretized in a finite element space, these slopes jump across cell boundaries.
 This discontinuity appears at first to make it impossible to discretize the problem.
-Our main contribution is to show how this challenge can be overcome using discontinuous Galerkin methods.}
-
+Our main contribution is to show how this challenge can be overcome using discontinuous Galerkin methods.
+\end{abstract}
 
 % --------------------
-\section{Introduction}
+\introduction
 
 Our goal in this paper is to describe techniques for simulating very viscous fluid flow with a free surface.
 We have in mind applications to glaciology and geodynamics.
@@ -100,7 +75,7 @@ The physical elevation in Cartesian coordinates is
     z = b(x, y) + \zeta \cdot h(x, y, t)
 \end{equation}
 where $b$ and $h$ are the bottom topography and fluid thickness.
-See Figure \ref{fig:tfc-vs-xyz} for an illustration.
+See Fig. \ref{fig:tfc-vs-xyz} for an illustration.
 We assume that the fluid film thickness can change in time but that the bottom topography is fixed.
 When using Cartesian coordinates, the computational grid has to be deformed to the surface and bottom topography.
 This results in more complicated formulas to discretize a conservation law.
@@ -387,23 +362,23 @@ For example, \citet{cockburn2002local} derive interior penalty methods as a cons
 \section{Terrain-following coordinates}
 
 \begin{table}[t]
+    \caption{All of the terms that appear in the minimization form of the Stokes problem and their equivalent in a curvilinear coordinate system.
+    Replacing every instance of a term in the ``Cartesian'' column with its counterpart in the  ``Curvilinear'' column gives the equivalent expression of the problem in the curvilinear coordinate system.}
+    \label{tab:xform-rules}
     \centering
-    \begin{tabular}{|c|c|c|}
+    \begin{tabular}{lcc}
         \hline
         Variable & Cartesian & Curvilinear \\
         \hline
         velocity & $u$ & $Ju$ \\
         gradients & $\nabla \phi$ & $\nabla\phi\cdot J^{-1}$ \\
         divergence & $\nabla\cdot u$ & $|\det J|^{-1}\nabla\cdot\{|\det J|\,u\}$ \\
-        normal & $n$ & $\sfrac{nJ^{-1}}{|nJ^{-1}|}$ \\
+        normal & $n$ & $nJ^{-1}/|nJ^{-1}|$ \\
         volume element & $\mathrm d\omega$ & $|\det J|\,\mathrm d\omega$ \\
         area element & $\mathrm d\gamma$ & $|\det J|\cdot |nJ^{-1}|\,\mathrm d\gamma$ \\
-        volume/surface ratio & $\sfrac{|\omega|}{|\gamma|}$ & $\sfrac{|\omega|}{|nJ^{-1}|\cdot|\gamma|}$ \\
+        volume/surface ratio & $|\omega|/|\gamma|$ & $|\omega|/(|nJ^{-1}|\cdot|\gamma|)$ \\
         \hline
     \end{tabular}
-    \caption{All of the terms that appear in the minimization form of the Stokes problem and their equivalent in a curvilinear coordinate system.
-    Replacing every instance of a term in the ``Cartesian'' column with its counterpart in the  ``Curvilinear'' column gives the equivalent expression of the problem in the curvilinear coordinate system.}
-    \label{tab:xform-rules}
 \end{table}
 
 The geometry of a free-surface flow is changing in time.
@@ -462,7 +437,7 @@ Nonetheless implementating the total of all of them can be error-prone, so they 
 \paragraph{Volumes.}
 Transforming volume integrals follows the familiar rule of multiplying by the determinant of the deformation matrix:
 \begin{equation}
-    \mathrm d\omega_x = |\det J|\ud\omega_\xi = h\ud\omega_\xi.
+    \mathrm d\omega_x = |\det J|\,\mathrm{d}\omega_\xi = h\,\mathrm{d}\omega_\xi.
     \label{eq:xform-volume}
 \end{equation}
 As a sanity check, this weighting factor makes the physical units work out correctly.
@@ -576,9 +551,9 @@ Here we ignore irrelevant boundary integrals that arise from using integration b
 The general expression for the divergence in other coordinate systems follows by requiring this relationship to remain true.
 We know how $\mathrm d\omega$, $v_x$, and $\nabla_x q$ transform from Cartesian to terrain-following coordinates:
 \begin{align}
-    \ldots & = -\int_\Omega\nabla_\xi q\cdot J^{-1}\cdot Ju_\xi\;h\ud\omega_\xi \nonumber\\
-    & = -\int_\Omega\nabla_\xi q\cdot h u_\xi\ud\omega_\xi \nonumber\\
-    & = +\int_\Omega q\nabla_\xi\cdot(hu_\xi)\ud\omega_\xi.
+    \ldots & = -\int_\Omega\nabla_\xi q\cdot J^{-1}\cdot Ju_\xi\;h\,\mathrm{d}\omega_\xi \nonumber\\
+    & = -\int_\Omega\nabla_\xi q\cdot h u_\xi\,\mathrm{d}\omega_\xi \nonumber\\
+    & = +\int_\Omega q\nabla_\xi\cdot(hu_\xi)\,\mathrm{d}\omega_\xi.
 \end{align}
 Here we used the fact that the factors of $J^{-1}$ and $J$ cancel out, then applied the usual trick to move the gradient back over as a divergence.
 Now we can assert that defining
@@ -611,7 +586,7 @@ The extra terms are all expressible in the Unified Form Language or related doma
 Finally, the thickness evolves in time according to a conservative advection equation.
 The variational form of this equation is
 \begin{equation}
-    \int_\Omega\left\{\frac{\partial h}{\partial t}\phi - hu\cdot\nabla\phi\right\}\mathrm d\omega + \int_{\Gamma_\text{out}}hu\cdot n\,\phi\ud\gamma = \int_\Omega(\dot a - \dot m)\phi\ud\omega - \int_{\Gamma_{\text{in}}}h_\text{in}u\cdot n\,\phi\ud\gamma
+    \int_\Omega\left\{\frac{\partial h}{\partial t}\phi - hu\cdot\nabla\phi\right\}\mathrm d\omega + \int_{\Gamma_\text{out}}hu\cdot n\,\phi\,\mathrm{d}\gamma = \int_\Omega(\dot a - \dot m)\phi\,\mathrm{d}\omega - \int_{\Gamma_{\text{in}}}h_\text{in}u\cdot n\,\phi\,\mathrm{d}\gamma
 \end{equation}
 where $\phi$ is an arbitrary test function, $\dot a$, $\dot m$ are the accumulation and ablation rates, $\Gamma_\text{in}$ and $\Gamma_\text{out}$ are the inflow and outflow segments of the domain boundary, and $h_\text{in}$ is the thickness at the inflow boundary.
 The usual form of this equation as described in e.g. \citet{greve2009dynamics} instead uses the depth-averaged velocity $\bar u$, and the integration domain is the lower-dimensional footprint of the computational mesh.
@@ -664,7 +639,7 @@ def free_energy_rate_facets(u, p, b, h):
 \end{lstlisting}
 \caption{
     Python source code to form the free energy dissipation rate for the Stokes equations in terrain-following coordinates shown in equation \eqref{eq:sipdg-stokes-tfc}.
-    The structure is the same as the code in Figure \ref{fig:source-code-xyz} for Cartesian coordinates.
+    The structure is the same as the code in Fig. \ref{fig:source-code-xyz} for Cartesian coordinates.
     The key differences are a few extra factors of $h$ and some added bookkeeping to multiply by $J$ or $J^{-1}$.
     The UFL interface requires us to specify \texttt{avg(h)} in the facet integrals even though the thickness is continuous.
 }
@@ -677,9 +652,9 @@ The analogue of equation \eqref{eq:sipdg-stokes-xyz} in terrain-following coordi
 \begin{subequations}
     \label{eq:sipdg-stokes-tfc}
     \begin{align}
-        G_\alpha(u, p) & = \sum_\omega\int_\omega\left\{\frac{1}{2}h\tau:\dot\varepsilon - p\nabla\cdot(h u) - hf\cdot J^*Ju\right\}\ud\omega \\
-        & \qquad - \sum_\gamma\int_\gamma\left\{\left\langle \tau\right\rangle:[Ju\otimes n\,J^{-1}] + \langle p\rangle[u\cdot n] \right\}h\ud\gamma \label{eq:sipdg-stokes-tfc-flux} \\
-        & \quad\qquad + \sum_\gamma\int_\gamma\frac{\alpha\mu|\gamma|}{2|\omega|}|[Ju\otimes nJ^{-1}]|^2\,h\ud\gamma \label{eq:sipdg-stokes-tfc-penalty}
+        G_\alpha(u, p) & = \sum_\omega\int_\omega\left\{\frac{1}{2}h\tau:\dot\varepsilon - p\nabla\cdot(h u) - hf\cdot J^*Ju\right\}\,\mathrm{d}\omega \\
+        & \qquad - \sum_\gamma\int_\gamma\left\{\left\langle \tau\right\rangle:[Ju\otimes n\,J^{-1}] + \langle p\rangle[u\cdot n] \right\}h\,\mathrm{d}\gamma \label{eq:sipdg-stokes-tfc-flux} \\
+        & \quad\qquad + \sum_\gamma\int_\gamma\frac{\alpha\mu|\gamma|}{2|\omega|}|[Ju\otimes nJ^{-1}]|^2\,h\,\mathrm{d}\gamma \label{eq:sipdg-stokes-tfc-penalty}
     \end{align}
 \end{subequations}
 where again $\tau = 2\mu\dot\varepsilon$ and the strain rate tensor in terrain-following coordinates is defined in equation \eqref{eq:strain-rate-tfc}.
@@ -697,7 +672,7 @@ Indeed, many of our unit tests will use Taylor-Hood elements for the velocity an
 As long as we (1) use the contravariant components of the velocity field in the curvilinear coordinate system and (2) discretize the thickness field with finite elements, we need to include the facet integrals that are normally used with discontinuous basis functions.
 But if we are willing to accept the added complexity of DG facet terms, then we may as well use a DG basis.
 
-The source code to produce the free energy rate for the Stokes equations in terrain-following coordinates with both conforming and non-conforming elements is shown in Figure \ref{fig:source-code-tfc}.
+The source code to produce the free energy rate for the Stokes equations in terrain-following coordinates with both conforming and non-conforming elements is shown in Fig. \ref{fig:source-code-tfc}.
 The function \texttt{free\_energy\_rate\_facets} computes the facet corrections to the free energy rate that are associated with discontinuous elements.
 We add this facet correction for all elements (continuous and discontinuous) when the thickness is discretized.
 
@@ -708,9 +683,9 @@ For the flux term, the algebra does not work out as cleanly.
 These terms translate to:
 \begin{subequations}
     \begin{align}
-        G_\alpha(u, p) = & \ldots - \sum_{\gamma\in\Gamma_R}\int_\gamma\left(\frac{n\cdot J^{-1}\tau J^{-*}n}{|nJ^{-1}|^2} - p\right)u\cdot n\; h\ud\gamma \label{eq:robin-tfc-flux}\\
-        & \qquad + \sum_{\gamma\in\Gamma_R}\int_\gamma\frac{\alpha\mu|\gamma|}{2|\omega|}(u\cdot n)^2\, h\ud\gamma \\
-        & \qquad\quad + \sum_{\gamma\in\Gamma_R}\int_\gamma\frac{\kappa}{2}\left|\left(I - \frac{nJ^{-1}\otimes nJ^{-1}}{|nJ^{-1}|^2}\right)u\right|^2|nJ^{-1}|\,h\ud\gamma \label{eq:robin-tfc-slip}
+        G_\alpha(u, p) = & \ldots - \sum_{\gamma\in\Gamma_R}\int_\gamma\left(\frac{n\cdot J^{-1}\tau J^{-*}n}{|nJ^{-1}|^2} - p\right)u\cdot n\; h\,\mathrm{d}\gamma \label{eq:robin-tfc-flux}\\
+        & \qquad + \sum_{\gamma\in\Gamma_R}\int_\gamma\frac{\alpha\mu|\gamma|}{2|\omega|}(u\cdot n)^2\, h\,\mathrm{d}\gamma \\
+        & \qquad\quad + \sum_{\gamma\in\Gamma_R}\int_\gamma\frac{\kappa}{2}\left|\left(I - \frac{nJ^{-1}\otimes nJ^{-1}}{|nJ^{-1}|^2}\right)u\right|^2|nJ^{-1}|\,h\,\mathrm{d}\gamma \label{eq:robin-tfc-slip}
     \end{align}
 \end{subequations}
 Here it is simpler to specialize to horizontal and vertical facets.
@@ -718,8 +693,8 @@ Define $\nu = (-\sigma^*, 1)$ to be the normal vector to horizontal facets.
 Then
 \begin{subequations}
     \begin{align}
-        \text{equation \eqref{eq:robin-tfc-flux}} & = -\sum_{\gamma\in\Gamma_H\cap\Gamma_R}\int_\gamma\left(\frac{\nu^*\tau\nu}{|\nu|^2} - p\right)u\cdot n\,h\ud\gamma + \sum_{\gamma\in\Gamma_V\cap\Gamma_R}\int_\gamma\left(n^*\tau n - p\right)u\cdot n\,h\ud\gamma \\
-        \text{equation \eqref{eq:robin-tfc-slip}} & = \sum_{\gamma\in\Gamma_H\cap\Gamma_R}\int_\gamma\frac{\kappa}{2}\left|\left(I - \frac{\nu\otimes\nu}{|\nu|^2}\right)u\right|^2|\nu|h\ud\gamma + \sum_{\gamma\in\Gamma_V\cap\Gamma_R}\int_\gamma\frac{\kappa}{2}\left|(I - n\otimes n)u\right|^2h\ud\gamma
+        \text{equation \eqref{eq:robin-tfc-flux}} & = -\sum_{\gamma\in\Gamma_H\cap\Gamma_R}\int_\gamma\left(\frac{\nu^*\tau\nu}{|\nu|^2} - p\right)u\cdot n\,h\,\mathrm{d}\gamma + \sum_{\gamma\in\Gamma_V\cap\Gamma_R}\int_\gamma\left(n^*\tau n - p\right)u\cdot n\,h\,\mathrm{d}\gamma \\
+        \text{equation \eqref{eq:robin-tfc-slip}} & = \sum_{\gamma\in\Gamma_H\cap\Gamma_R}\int_\gamma\frac{\kappa}{2}\left|\left(I - \frac{\nu\otimes\nu}{|\nu|^2}\right)u\right|^2|\nu|h\,\mathrm{d}\gamma + \sum_{\gamma\in\Gamma_V\cap\Gamma_R}\int_\gamma\frac{\kappa}{2}\left|(I - n\otimes n)u\right|^2h\,\mathrm{d}\gamma
     \end{align}
 \end{subequations}
 Specializing to horizontal and vertical facets simplifies out several terms that look like $h / h$.
@@ -785,18 +760,18 @@ The boundary terms we get in doing so include both a spatial contribution \eqref
 The resulting variational form is
 \begin{subequations}
     \begin{align}
-        0 & = -\iint\limits_{\Omega\times[t_1, t_2]}q\cdot\hat{\nabla}_x\psi\ud\omega_x\ud t \label{eq:4div-form-cells} \\
-        & \qquad + \iint\limits_{\partial\Omega\times[t_1, t_2]}q_x\cdot n\,\psi\ud\gamma_x\ud t \label{eq:4div-form-xboundary}\\
-        & \qquad\quad + \int_\Omega q_t\psi\ud\omega_x\Bigg|_{t_2} - \int_\Omega q_t\psi\ud\omega_x\Bigg|_{t_1} \label{eq:4div-form-tboundary}
+        0 & = -\iint\limits_{\Omega\times[t_1, t_2]}q\cdot\hat{\nabla}_x\psi\,\mathrm{d}\omega_x\,\mathrm{d} t \label{eq:4div-form-cells} \\
+        & \qquad + \iint\limits_{\partial\Omega\times[t_1, t_2]}q_x\cdot n\,\psi\,\mathrm{d}\gamma_x\,\mathrm{d} t \label{eq:4div-form-xboundary}\\
+        & \qquad\quad + \int_\Omega q_t\psi\,\mathrm{d}\omega_x\Bigg|_{t_2} - \int_\Omega q_t\psi\,\mathrm{d}\omega_x\Bigg|_{t_1} \label{eq:4div-form-tboundary}
     \end{align}
 \end{subequations}
 For the particular case of the transport equation \eqref{eq:transport}, we can unpack this into the more familiar form
 \begin{subequations}
     \label{eq:transport-git}
     \begin{align}
-        0 & = -\iint\limits_{\Omega\times[t_1, t_2]}\left(\phi\frac{\partial\psi}{\partial t} + \phi w_x\cdot\nabla_x\psi\right)\ud\omega_x\ud t \\
-        & \qquad + \iint\limits_{\partial\Omega\times[t_1, t_2]}\phi w_x\cdot n\,\psi\ud\gamma_x\ud t \\
-        & \qquad\quad + \int_\Omega \phi\psi\ud\omega_x\Bigg|_{t_2} - \int_\Omega \phi\psi\ud\omega_x\Bigg|_{t_1}
+        0 & = -\iint\limits_{\Omega\times[t_1, t_2]}\left(\phi\frac{\partial\psi}{\partial t} + \phi w_x\cdot\nabla_x\psi\right)\,\mathrm{d}\omega_x\,\mathrm{d} t \\
+        & \qquad + \iint\limits_{\partial\Omega\times[t_1, t_2]}\phi w_x\cdot n\,\psi\,\mathrm{d}\gamma_x\,\mathrm{d} t \\
+        & \qquad\quad + \int_\Omega \phi\psi\,\mathrm{d}\omega_x\Bigg|_{t_2} - \int_\Omega \phi\psi\,\mathrm{d}\omega_x\Bigg|_{t_1}
     \end{align}
 \end{subequations}
 From here, we arrive at the right conditions on the inflow and outflow boundary by segmenting $\partial\Omega$ according to where $w\cdot n$ is positive or negative.
@@ -823,9 +798,9 @@ We get the variational form in curvilinear coordinates by applying the transform
 \begin{subequations}
     \label{eq:transport-tfc}
     \begin{align}
-        0 & = -\iint\limits_{\Omega\times[t_1,t_2]}\left\{h\phi\frac{\partial\psi}{\partial t} + h\phi(u_\xi - v_\xi)\cdot\nabla_\xi\psi + hf\psi\right\}\,\mathrm d\omega_\xi\ud t \\
-        & \qquad + \iint\limits_{\partial\Omega\times[t_1,t_2]}h\left\{\phi\left[(u_\xi - v_\xi)\cdot n_\xi\right]_+ + \phi_{\text{in}}\left[(u_\xi - v_\xi)\cdot n_\xi\right]_- \right\}\psi\ud\gamma_\xi\ud t \\
-        & \qquad\qquad + \int_\Omega h\phi\psi\ud\omega_\xi\Bigg|_{t_2} - \int_\Omega h\phi\psi\ud\omega_\xi\Bigg|_{t_1}.
+        0 & = -\iint\limits_{\Omega\times[t_1,t_2]}\left\{h\phi\frac{\partial\psi}{\partial t} + h\phi(u_\xi - v_\xi)\cdot\nabla_\xi\psi + hf\psi\right\}\,\mathrm d\omega_\xi\,\mathrm{d} t \\
+        & \qquad + \iint\limits_{\partial\Omega\times[t_1,t_2]}h\left\{\phi\left[(u_\xi - v_\xi)\cdot n_\xi\right]_+ + \phi_{\text{in}}\left[(u_\xi - v_\xi)\cdot n_\xi\right]_- \right\}\psi\,\mathrm{d}\gamma_\xi\,\mathrm{d} t \\
+        & \qquad\qquad + \int_\Omega h\phi\psi\,\mathrm{d}\omega_\xi\Bigg|_{t_2} - \int_\Omega h\phi\psi\,\mathrm{d}\omega_\xi\Bigg|_{t_1}.
     \end{align}
 \end{subequations}
 Here we have separated the inflow and outflow terms in the spatial boundary integral.
@@ -995,7 +970,7 @@ As a ``smoke test'', we consider relaxation of a sinusoidal surface based on the
 We used a no-slip condition on the bottom of the domain, free-slip conditions on the side walls, and no stress on the surface.
 The fluid is confined to a domain 100 km wide.
 The initial mean thickness is 1 km with a variation of 100 m.
-The viscosity and density are $10^{12}$ Pa s and 910 kg/m${}^3$ respectively.
+The viscosity and density are $10^{12}$ Pa s and 910 kg m${}^{-3}$ respectively.
 For the numerical scheme, we use DQ${}_2$ elements for the velocity, DQ${}_1$ elements for the pressure, and CG${}_1$ elements for the thickness.
 We used a mesh with 50 elements in the horizontal and 5 in the vertical.
 
@@ -1057,14 +1032,14 @@ We added feedback between the surface elevation and surface mass balance:
     \dot a = \max\left\{\dot a_{\text{max}}, \frac{\delta a}{\delta s}(s - fb_0)\right\}
 \end{equation}
 where the dimensionless fraction $f$ dictates where the equilibrium line altitude (ELA) is relative to the top of the mountain and $\delta a/\delta s$ is tuned in order to make the accumulation equal to its maximum value at the top of the mountain.
-Here we took the maximum accumulation rate to be $\dot a_{\text{max}} = 1$ m/yr and the ELA fraction $f = 0.4$ so that the ELA occurs at a height of 320 m.
+Here we took the maximum accumulation rate to be $\dot a_{\text{max}} = 1$ m yr${}^{-1}$ and the ELA fraction $f = 0.4$ so that the ELA occurs at a height of 320 m.
 We then spin the up the model for 400 years.
 
 We use again DQ${}_2$ elements for velocity, DQ${}_1$ elements for pressure, and CG${}_1$ elements for thickness.
 The mesh had 500 elements in the horizontal and 5 in the vertical.
 We used a timestep of 1 year.
 We used an absolute convergence tolerance of $10^{-10}$ and a relative tolerance of $10^{-8}$.
-The results are shown in Figure \ref{fig:perlin-glacier}.
+The results are shown in Fig. \ref{fig:perlin-glacier}.
 With these parameters, nearly all timesteps required 3 to 4 Newton iterations and only a handful required 5.
 
 We tested several other configurations against this default setup.
@@ -1104,15 +1079,15 @@ The interface sits at an elevation
     z = z_0 + \delta z\cdot \sin(\pi x / L)
 \end{equation}
 where $z_0$ = 400 km and $\delta z$ = 10 km.
-The material below the interface has a density of 3200 kg/m${}^3$ and the material above has a density 100 kg/m${}^3$ higher.
+The material below the interface has a density of 3200 kg m${}^{-3}$ and the material above has a density 100 kg m${}^{-3}$ higher.
 The viscosity is 10${}^{20}$ Pa$\cdot$s, but for numerical stability we use units of gigapascals, kilometers, and millennia (ka).
 \citet{kaus2010stabilization} found that the unstabilized simulation would converge with a timestep of 2.5 ka but exhibited the drunken sailor instability at a timestep of 5 ka.
 Their stabilized scheme converged with timesteps up to 50 ka.
 We used a monolithic backward Euler scheme which solves simultaneously for velocity, pressure, density, and thickness.
 We ran the simulation for 24 Ma of model time with a timestep of 50 ka.
 We used both DQ${}_0$ and DQ${}_1$ finite elements for the density with the upwind numerical flux.
-The results, shown in Figure \ref{fig:rayleigh-taylor-density}, exhibit the expected sinking of the heavier fluid and rising of lighter plumes.
-The thickness over the first 3 Ma is shown in Figure \ref{fig:rayleigh-taylor-thickness}.
+The results, shown in Fig. \ref{fig:rayleigh-taylor-density}, exhibit the expected sinking of the heavier fluid and rising of lighter plumes.
+The thickness over the first 3 Ma is shown in Fig. \ref{fig:rayleigh-taylor-thickness}.
 The initially flat surface forms a bulge about 1 km high in the first 1 Ma which gradually decays.
 
 Our convergence criterion was that the residual was reduced by a factor of 10${}^{-8}$ or dropped below 10${}^{-9}$.
@@ -1129,7 +1104,7 @@ The fix for this problem is making a good choice of units.
     \caption{Convergence rates (a) and work vs. precision (b) for backward Euler, 2-stage Radau-IIA with direct factorization, and Radau-IIA with Rana preconditioning.
     The point labels show the timestep using in units of 10${}^3$ years.
     The typical scales for the velocity are on the order of 10${}^{-1}$ m/a, so for example the backward Euler solution with a timestep of 25 ka has an RMS error of 10${}^{-2}$ m/a which makes for a relative error of about 10\%, while the Radau solution with a timestep of 50 ka has a relative error below 1\%.
-    Likewise, the density contrast is 100 kg/m${}^3$ and the total thickness variation is about 1 km.}
+    Likewise, the density contrast is 100 kg m${}^{-3}$ and the total thickness variation is about 1 km.}
     \label{fig:rayleigh-taylor-work-prec}
 \end{figure}
 
@@ -1142,7 +1117,7 @@ At the finest timesteps, the error curve does approach the theoretical values of
 The slower rates at coarser timesteps do not indicate an error of themselves.
 The theoretical convergence rates are only in the limit as the timestep is reduced and deviations from these rates at coarse steps are possible.
 Moreover, the initial condition is non-smooth, which might also cause some departure from the theoretical convergence rate.
-The more interesting outcome is the work-precision curve in Figure \ref{fig:rayleigh-taylor-work-prec}(b), which plots the difference between the reference solution for each field against the wall clock time that each simulation required.
+The more interesting outcome is the work-precision curve in Fig. \ref{fig:rayleigh-taylor-work-prec}(b), which plots the difference between the reference solution for each field against the wall clock time that each simulation required.
 These curves indicate that \textbf{the Radau-IIA method requires less effort to obtain a solution of the same accuracy as backward Euler over the entire range of timesteps}.
 
 The work-precision curves described above assume that we are using direct factorization of the linear system to compute the Radau-IIA solution.
@@ -1160,7 +1135,7 @@ This preconditioner cuts the execution time by over 40\% and memory by 30\%.
 
 
 % ------------------
-\section{Discussion}
+\conclusions[Discussion]
 
 We presented a reformulation of the Stokes equations in terrain-following coordinates and showed how to discretize the problem with the discontinuous Galerkin finite element method.
 This approach goes beyond existing work in the literature on computational fluid dynamics and offers a few advantages.
@@ -1177,11 +1152,11 @@ The velocity vector has an existence independent of the reference frame, but to 
 In a curvilinear coordinate system there are several choices to make about which components \citep{yang1994general}.
 We elected to work with the contravariant components of the velocity vector in the curvilinear coordinate system rather than the Cartesian velocities as is done in e.g. SICOPOLIS.
 \citet{greve2009dynamics} state in \S5.7.2:
-\begin{displayquote}
+\begin{quote}
     Note that, while applying the sigma transformation, we have not attempted to write the velocity vector $\mathbf v$ in components of the curvilinear, transformed coordinates.
     Instead, the Cartesian components $u = v_x$ and $w = v_z$ are treated like scalar fields which are not affected by the transformation.
     This is common practise in connection with the sigma transformation; otherwise, the transformed equations would become very complicated due to the non-orthogonality of the transformed coordinates.
-\end{displayquote}
+\end{quote}
 The transformed equations that we use do have extra factors of $J$.
 We had to use special techniques in order to discretize the problem because of these extra terms.
 The equations would indeed become too complicated to implement if we were to write out every component of the stress tensor and the momentum balance equation.
@@ -1258,14 +1233,6 @@ There are other possible performance improvements that we have not explored, inc
 
 These issues and others will be the subject of future work.
 
-\pagebreak
-
-\bibliographystyle{plainnat}
-\bibliography{stokes-tfc.bib}
-
-
-
-\pagebreak
 
 \appendix
 \section{Three-field form}
@@ -1297,9 +1264,9 @@ We can get the three-field form of the Stokes problem in terrain-following coord
 \begin{subequations}
     \label{eq:sipdg-stokes-dual-tfc}
     \begin{align}
-        G_\alpha^*(u, p, \tau) & = \sum_\omega\int_\omega\left\{\frac{1}{4\mu}h|\tau|^2 - h\tau:\dot\varepsilon + p\nabla\cdot(h u) + hf\cdot J^*Ju\right\}\ud\omega \\
-        & \qquad + \sum_\gamma\int_\gamma\left\{\left\langle\tau\right\rangle:[Ju\otimes n\,J^{-1}] + \langle p\rangle[u\cdot n] \right\}\,h\ud\gamma \\
-        & \quad\qquad - \sum_\gamma\int_\gamma\frac{\alpha\mu|\gamma|}{2|\omega|}|[Ju\otimes nJ^{-1}]|^2\,h\ud\gamma \label{eq:sipdg-stokes-dual-tfc-penalty}
+        G_\alpha^*(u, p, \tau) & = \sum_\omega\int_\omega\left\{\frac{1}{4\mu}h|\tau|^2 - h\tau:\dot\varepsilon + p\nabla\cdot(h u) + hf\cdot J^*Ju\right\}\,\mathrm{d}\omega \\
+        & \qquad + \sum_\gamma\int_\gamma\left\{\left\langle\tau\right\rangle:[Ju\otimes n\,J^{-1}] + \langle p\rangle[u\cdot n] \right\}\,h\,\mathrm{d}\gamma \\
+        & \quad\qquad - \sum_\gamma\int_\gamma\frac{\alpha\mu|\gamma|}{2|\omega|}|[Ju\otimes nJ^{-1}]|^2\,h\,\mathrm{d}\gamma \label{eq:sipdg-stokes-dual-tfc-penalty}
     \end{align}
 \end{subequations}
 The same considerations, such as the double-saddle structure, apply as in the Cartesian case.
@@ -1328,5 +1295,26 @@ It is worth noting that the duality pairing in terrain-following coordinates is 
 Trying to apply convex duality directly to equation \eqref{eq:sipdg-stokes-tfc} with the wrong inner product results in a less tractable dissipation rate.
 
 
+\noappendix
+
+\codeavailability{The sources for this paper and the computational experiments are available from \url{https://github.com/icepack/terrain-following-stokes}.
+The experiments were performed with Firedrake version 2026.10.0.}
+
+\authorcontribution{D.R.S. wrote the code and the manuscript.}
+
+\competinginterests{The authors declare that they have no conflict of interest.}
+
+\begin{acknowledgements}
+The author thanks Karim Norouzi, Andrew Hoffman, Dave May, Rob Kirby, Gonzalo Gonzalez de Diego, Emily Wilbur, and Charles Barker for helpful discussions and suggestions.
+
+\textbf{AI use}.
+The author used Claude Opus 5.5 for debugging and writing code for visualization.
+The author wrote all the text and simulation source code.
+\end{acknowledgements}
+
+\financialsupport{This research has been supported by the United States National Science Foundation awards \#2411055, \#2410736, \#2337487, \#2231230 and National Aeronautics and Space Administration award \#80NSSC20K0954.}
+
+\bibliographystyle{copernicus}
+\bibliography{stokes-tfc}
 
 \end{document}
