@@ -1,4 +1,4 @@
-stokes-tfc.pdf: stokes-tfc.tex demo/testing/flowchart.pdf
+stokes-tfc.pdf: stokes-tfc.tex stokes-tfc.bib demo/testing/flowchart.pdf
 	latexmk -pdf stokes-tfc.tex
 
 demo/testing/flowchart.pdf: demo/testing/flowchart.gv
