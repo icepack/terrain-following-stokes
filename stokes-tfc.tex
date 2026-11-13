@@ -1135,11 +1135,7 @@ This preconditioner cuts the execution time by over 40\% and memory by 30\%.
 
 
 % ------------------
-\conclusions[Discussion]
-
-We presented a reformulation of the Stokes equations in terrain-following coordinates and showed how to discretize the problem with the discontinuous Galerkin finite element method.
-This approach goes beyond existing work in the literature on computational fluid dynamics and offers a few advantages.
-The most significant advantages are overcoming the drunken sailor instability and providing a clear path to applying higher-order timestepping schemes.
+\section{Discussion}
 
 Several previous works have used terrain-following coordinates for ice flow modeling.
 \citet{kleiner2014numerical} is the closest in spirit to this work.
@@ -1187,6 +1183,8 @@ They used this strategy to implement both a backward differentiation formula and
 A critical element of this approach was the addition of an augmented free-surface stabilization term, which they derive by hand through Taylor expansion of the discrete problem, over and above the usual stabilization.
 This extra stabilization (equation (19) of \citet{ahlkrona2026fully}) helps to guarantee that the surface sub-step of the Gauss-Seidel iteration remains stable even for long timesteps.
 On the other hand, we were able to apply a higher-order timestepping scheme ``out of the box'' with no extra terms in the variational form.
+Moreover, we found that this higher-order timestepping scheme requires less computational effort to achieve a given accuracy than backward Euler.
+Using the Rana preconditioner made the higher-order scheme have an even more favorable work-precision tradeoff.
 
 Several papers in computational fluid dynamics have used Riemannian geometry to describe flow in evolving curved geometries, for example \citet{luo2004contravariant}.
 Here the outlook is just as bad as for curvilinear coordinates discretized with finite elements.
@@ -1232,6 +1230,19 @@ The Rana-Howle preconditioner makes the cost of fully-implicit schemes closer to
 There are other possible performance improvements that we have not explored, including using hybridization or multigrid preconditioners.
 
 These issues and others will be the subject of future work.
+
+\conclusions
+
+We presented the equations of viscous fluid flow with a free surface in terrain-following coordinates.
+Discretizing this problem with finite elements might at first appear impossible because the deformation matrix $J$ is discontinuous and appears under a derivative.
+We showed how to overcomes this continuity barrier using the interior penalty discontinuous Galerkin method.
+The main contribution of this paper is equation \eqref{eq:sipdg-stokes-tfc}.
+This approach goes beyond existing work in the literature on computational fluid dynamics and offers a few advantages.
+The most significant advantages are overcoming the drunken sailor instability and providing a clear path to applying higher-order timestepping schemes.
+We showed that higher-order timestepping schemes, especially with a good preconditioner, can require much less computational work to attain the same precision than first-order methods like backward Euler.
+Terrain-following coordinates have a significant up-front cost in the mathematics.
+But there is a major payoff in computational efficiency.
+In future work, we will extend this technique to problems with nonlinear rheology.
 
 
 \appendix
